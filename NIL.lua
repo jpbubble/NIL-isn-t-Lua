@@ -55,6 +55,10 @@ local function trim(s)
   return (s:gsub("^%s*(.-)%s*$", "%1"))
 end
 
+local function prefixed(str,prefix) 
+   return left(str,#prefix)==prefix 
+end
+
 local function itpairs(mytab)
   local i = 0
   return function()
