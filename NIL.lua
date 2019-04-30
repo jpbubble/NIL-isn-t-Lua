@@ -10,7 +10,7 @@
 local macros = {}
 local vars = {}
 local luakeywords = {"if","do","for","while","then","repeat","until"}
-local nilkeywords = {"number","int","void","string","var","return","module","class", "function"}
+local nilkeywords = {"number","int","void","string","var","return","module","class", "function","global"}
 local operators   = {"=","==","<",">",">=","<=","+","-","*","/","%"}
 local mNIL = {}
 
@@ -23,6 +23,7 @@ local ipairs=ipairs
 local pairs=pairs
 local table=table
 local type=type
+local tonumber=tonumber
 
 -- A few functions I need to get NIL to work anyway!
 local replace = string.gsub
@@ -116,15 +117,23 @@ local function chop(mystring,pure)
   local chopped=split(tstring)
   if pure then return chopped end
   local ret = {}
-  for _,e in ipairs(chopped) do
+  for c,e in ipairs(chopped) do
       local word = {}
       ret[#ret+1]=word
       word.word=e
       word.type="Unknown"
       if     tcontains(luakeywords) then
          word.type="LuaKeyword"
+      elseif left(e,1)=="#" and c==1 then
+         word.type="NIL_directive"
+      elseif left(e,1)=="#" then
+         word.type="ElementCounter"
       elseif tcontains(nilkeywords) then
-         word.type("NILKeyword")
+         word.type = "NILKeyword"
+      elseif tonumber(word.word) then -- If not a number, 'tonumber' returns 'nil' causing the boolean expression to be false.
+         word.type ='number' 
+      elseif (left(word.word,1)=='"' and right(word.word=='"') or (left(word.word,1)=="'" and right(word.word,1)=="'")) then
+         word.type = "string"
       elseif word.vars[e] then
          word.type = "NIL_identifier"
          word.NILType = word.vars[e]
@@ -138,10 +147,12 @@ end
 
 -- Translator itself
 function mNIL.Translate(script,chunk)
+    local ret = ""
     local lines = split(script,"\n")
     local lmacro = {}
     local amacro = {lmacro,macros}
     for linenumber,getrawline in itpairs(lines) do
+         local track = "line #"..linenumber.. "; chunk: "..chunk
          local line = getrawline
          -- Let's first see what macros we have
          for _,m in ipairs(amacro) do for mak,rep in spairs(m) do
@@ -150,6 +161,26 @@ function mNIL.Translate(script,chunk)
          -- Let's chop the line up, shall we?
          local chopped = chop(line)
          if prefixed(line,"#") then
+            if chopped[1].word=="#macro" or chopped[1].word=="#localmacro" then
+               assert(#chopped>=3,"invalid macro defintion in line #"..linenumber.."; chunk: "..chunk)
+               local rest = ""
+               local wmacro
+               for i,r in ipairs(chopped) do
+                   if i> 3 then ret=rest.." " end
+                   if i>=3 then rest=rest..chopped[i].word end
+               end
+               if chopped[1].word=="#macro" then wmacro=macros else wmacro=lmacro end
+               assert(not wmacro[chopped[2].word] , "Duplicate macro in "..track)
+               wmacro[chopped[2].word] = rest
+               ret = ret .. "--[[ defined macro "..wmacro[2].word.." to "..rest.." ]]\n"
+            end
+         elseif chopped[1].type=="NILKeyword" then
+            -- TODO: Try to detect declarations
+         else
+            for _,v in ipairs(chopped) do
+                assert(v.type~="Unknown","Unknown term \""..v.word.."\" in "..track)
+                
+            end
          end
     end
 end
