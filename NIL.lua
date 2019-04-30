@@ -9,7 +9,9 @@
 -- Variables
 local macros = {}
 local vars = {}
-local luakeywords = {}
+local luakeywords = {"if","do","for","while","then","repeat","until"}
+local nilkeywords = {"number","int","void","string","var","return","module","class", "function"}
+local operators   = {"=","==","<",">",">=","<=","+","-","*","/","%"}
 local mNIL = {}
 
 -- locals are faster than gloabls
@@ -20,6 +22,7 @@ local string=string
 local ipairs=ipairs
 local pairs=pairs
 local table=table
+local type=type
 
 -- A few functions I need to get NIL to work anyway!
 local replace = string.gsub
@@ -71,6 +74,13 @@ local function itpairs(mytab)
   end
 end
 
+local function tcontains(t,v)
+    for i,iv in ipairs(t) do
+        if iv==v then return i end
+    end
+    return nil 
+end
+
 local function spairs(t, order)
     -- collect the keys
     local keys = {}
@@ -93,6 +103,39 @@ local function spairs(t, order)
     end
 end
 
+local function chop(mystring,pure) 
+  local i=0
+  local wstring
+  local tstring  = mystring
+  repeat
+     wstring = tstring
+     tstring = replace(tstring,"\r", " ")
+     tstring = replace(tstring,"\t", " ")
+     tstring = replace(tstring("  ", " "))
+  until wstring == tstring
+  local chopped=split(tstring)
+  if pure then return chopped end
+  local ret = {}
+  for _,e in ipairs(chopped) do
+      local word = {}
+      ret[#ret+1]=word
+      word.word=e
+      word.type="Unknown"
+      if     tcontains(luakeywords) then
+         word.type="LuaKeyword"
+      elseif tcontains(nilkeywords) then
+         word.type("NILKeyword")
+      elseif word.vars[e] then
+         word.type = "NIL_identifier"
+         word.NILType = word.vars[e]
+      elseif _G[e] then
+         word.type = "Lua_identifier"
+         word.LuaType = type(_G[e])
+      end
+  end
+  return ret
+end
+
 -- Translator itself
 function mNIL.Translate(script,chunk)
     local lines = split(script,"\n")
@@ -100,10 +143,14 @@ function mNIL.Translate(script,chunk)
     local amacro = {lmacro,macros}
     for linenumber,getrawline in itpairs(lines) do
          local line = getrawline
-      -- Let's first see what macros we have
+         -- Let's first see what macros we have
          for _,m in ipairs(amacro) do for mak,rep in spairs(m) do
              line = replace(line,mak,rep)
          end end
+         -- Let's chop the line up, shall we?
+         local chopped = chop(line)
+         if prefixed(line,"#") then
+         end
     end
 end
 
