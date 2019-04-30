@@ -19,8 +19,11 @@ local load=load
 local string=string
 local ipairs=ipairs
 local pairs=pairs
+local table=table
 
 -- A few functions I need to get NIL to work anyway!
+local replace = string.gsub
+
 local function split(inputstr, sep)
         if sep == nil then
                 sep = "%s"
@@ -68,12 +71,39 @@ local function itpairs(mytab)
   end
 end
 
+local function spairs(t, order)
+    -- collect the keys
+    local keys = {}
+    local t2 = {}
+    for k,v in pairs(t) do keys[#keys+1] = k  t2[k]=v end
+    -- if order function given, sort by it by passing the table and keys a, b,
+    -- otherwise just sort the keys 
+    if order then
+        table.sort(keys, function(a,b) return order(t, a, b) end)
+    else
+        table.sort(keys)
+    end
+    -- return the iterator function
+    local i = 0
+    return function()
+        i = i + 1
+        if keys[i] then
+            return keys[i], t2[keys[i]]
+        end
+    end
+end
 
 -- Translator itself
 function mNIL.Translate(script,chunk)
     local lines = split(script,"\n")
     local lmacro = {}
-    for linenumber,line in itpairs(lines) do
+    local amacro = {lmacro,macros}
+    for linenumber,getrawline in itpairs(lines) do
+         local line = getrawline
+      -- Let's first see what macros we have
+         for _,m in ipairs(amacro) do for mak,rep in spairs(m) do
+             line = replace(line,mak,rep)
+         end end
     end
 end
 
