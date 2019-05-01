@@ -8,7 +8,7 @@
 local NIL=require "NIL"
 
 local NILCode = [[
-    -- Testing!
+    // Testing!
     #macro HW "Hello World!"
     print(HW)
 ]]
