@@ -12,6 +12,9 @@ local NILCode = [[
     #macro HW "Hello World!"
     print("Hallo Welt") // This German variant was to test if this worked in both WITH and WITHOUT macros
     print(HW)
+    
+    string Cow = "Moo"
+    global int Paws = 4
 ]]
 local NILTrans = NIL.Translate(NILCode,"NILCode")
 

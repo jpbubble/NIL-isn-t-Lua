@@ -9,9 +9,12 @@
 -- Variables
 local macros = {}
 local vars = {}
-local luakeywords = {"if","do","for","while","then","repeat"}
-local nilkeywords = {"number","int","void","string","var","return","module","class", "function","global","end","until"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
-local operators   = {"=","==","<",">",">=","<=","+","-","*","/","%","(",")","{","}","[","]",",","//"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
+local functions = {}
+local classes = {} -- reserved for when classes are implemented!
+local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "switch","case","default"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
+local nilkeywords = {"number","int","void","string","var","module","class", "function","global"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
+local operators   = {"=","==","<",">",">=","<=","+","-","*","/","%","(",")","{","}","[","]",",","//","!=","~="} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
+local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void"}
 local mNIL = {}
 
 -- locals are faster than gloabls
@@ -106,7 +109,20 @@ local function spairs(t, order)
     end
 end
 
+local function ValidForIdentifier(str)
+   -- Regular expressions may be faster, but I never mastered that, and this way I can be sure it works!
+   local ret = true
+   for i=1,#str do
+       local c=mid(str:upper(),i,1)
+       local b=ASC(c)
+       if (i==1 and b>=48 and b<=57) then return false end -- Identifiers may NOT begin with a number!
+       ret = ret and (b=="_" or (b>=65 and b<=90) or (b>=48 and b<=57))
+   end
+   return ret
+end
+
 local function chop(mystring,pure,atrack) 
+  if trim(mystring)=="" then return {} end
   local track = atrack or "???"
   --[[ primitive method
   local i=0
@@ -195,7 +211,7 @@ local function chop(mystring,pure,atrack)
          word.type="ElementCounter"
       elseif left(e,2) == "//" then
          word.type="Comment"
-      elseif tcontains(nilkeywords,word.word) then
+      elseif tcontains(nilkeywords,word.word) or nilkeywords[word.word] then
          word.type = "NILKeyword"
       elseif tcontains(operators,word.word) then
          word.type = "Operator"
@@ -220,7 +236,12 @@ function mNIL.Translate(script,chunk)
     local lines = split(script,"\n")
     local lmacro = {}
     local amacro = {lmacro,macros}
+    local scopes = {[0]="Base Scope"}
+    local scopelevel = function() return #scopes end
+    local scopetype = function() return scopes[#scopes] end
+    vars.globals = vars.globals or {}
     for linenumber,getrawline in itpairs(lines) do
+         vars[scopelevel()] = vars[scopelevel()] or {}
          local track = "line #"..linenumber.. "; chunk: "..(chunk or 'He-Who-Must-Not-Be-Name')
          local line = getrawline
          -- Let's first see what macros we have
@@ -229,7 +250,9 @@ function mNIL.Translate(script,chunk)
          end end
          -- Let's chop the line up, shall we?
          local chopped = chop(line,false,track)
-         if prefixed(line,"#") then
+         if #chopped==0 then
+            -- nothing happens!
+         elseif prefixed(line,"#") then
             if chopped[1].word=="#macro" or chopped[1].word=="#localmacro" then
                assert(#chopped>=3,"NT: Invalid macro defintion in "..track)
                local rest = ""
@@ -243,8 +266,88 @@ function mNIL.Translate(script,chunk)
                wmacro[chopped[2].word] = rest
                ret = ret .. "--[[ defined macro "..chopped[2].word.." to "..rest.." ]]\n"
             end
-         elseif chopped[1].type=="NILKeyword" then
-            -- TODO: Try to detect declarations
+         elseif chopped[1].type=="NILKeyword" then -- only for declarations!
+            local tpestart=1
+            local doglobal=false
+            local idtype
+            local id
+            local default = "nil"
+            do local getout repeat
+               getout=true
+               if chopped[tpestart].word=="global" then 
+                  doglobal=true getout=false tpestart = tpestart + 1 
+                  --print("GLOBAL DETECTED!")
+               end
+            until getout end
+            assert( chopped[tpestart].type=="NILKeyword" , "NT: declaration syntax error in "..track )
+            idtype=chopped[tpestart].word
+            assert(idtype~="class","NT: Classes have not yet been supported! "..track)
+            if idtypes[idtype] then idtype=idtypes[idtype] end
+            id = chopped[tpestart+1].word
+            assert(id,"NT: Incomplete declaration")
+            assert(chopped[tpestart+1].type=="Unknown","NT: Identifier name ("..chopped[tpestart+1].word..") seems known as a "..chopped[tpestart+1].type.." in "..track)
+            assert(ValidForIdentifier(id),"NT: \""..id.."\" is not a valid identifier in "..track)
+            do
+               local scopetest=scopelevel()
+               if doglobal then scopetest="globals" end
+               -- print(scopetest,type(vars),type(vars[scopetest]))
+               assert(
+                  not(
+                    vars[scopetest][id] or 
+                    classes[id] or 
+                    functions[id]
+                  ),"NT: Duplicate identifier \""..id.."\" in "..track)
+            end
+            if chopped[tpestart+2].word=="(" then   
+               assert(
+                    chopped[#chopped].word==")" or 
+                    (
+                       prefixed(chopped[#chopped].word,"") and 
+                       chopped[#chopped-1].word==")"
+               ),"NT: Incomplete function declaration")
+               functions[id] = { idtype=idtype}
+               error("NT: Functions not yet supported! Coming soon!")
+            else
+               --print(idtype)
+               assert(idtype~="void","NT: Type 'void' has been reserved for functions only!")
+               local pdefault,psdefault
+               if chopped[tpestart+2].word=="=" then
+                  assert( #chopped>=tpestart+3 , "NT: Syntax error")
+                  pdefault=chopped[tpestart+3]
+                  psdefault=nil; if pdefault then psdefault=pdefault.word end
+               end
+               if idtype=="number" then 
+                 default="0"
+                 if pdefault then
+                    assert(tonumber(psdefault),"NT: Constant number expected in "..track)
+                 end
+               elseif idtype=="string" then 
+                  default='""'
+                  if pdefault then
+                    print(pdefault.type)
+                    assert(pdefault.type=="string","NT: Constant string expected in "..track)
+                  end  
+               elseif idtype=="table" then 
+                  default="{}" 
+                  if pdefault then
+                     error("NT: Full table definition from variable declaration not yet supported in "..track)
+                  end
+               elseif idtype=="var" then
+                  if pdefault then
+                     error("NT: Direct, declare and define is not yet supported for variants in "..track)
+                  end
+               else
+                  error("NT: Type not yet supported in "..track)
+               end
+               if not doglobal then 
+                vars[scopelevel()][id] = {idtype=idtype}
+                ret = ret .. "local " 
+               else
+                vars.globals[id] = {idtype=idtype}
+               end
+               ret = ret .. sprintf("%s = %s",id,psdefault or default)
+               
+            end
          else
             for i,v in ipairs(chopped) do
                 assert(v.type~="Unknown","NT: Unknown term \""..v.word.."\" in "..track)
@@ -268,7 +371,7 @@ end
 mNIL.LoadString = mNIL.Load
 
 function mNIL.LoadFile(file,chunk)
-	local f = assert(io.open(file, "rb"))
+	local f = assert(io.open(file, "rb"),"NL: Reading file "..file.." failed")
 	local content = f:read("*all")
 	f:close()
 	return mNIL.Load(content,chunk or file)
