@@ -11,7 +11,7 @@ local macros = {}
 local vars = {}
 local luakeywords = {"if","do","for","while","then","repeat"}
 local nilkeywords = {"number","int","void","string","var","return","module","class", "function","global","end","until"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
-local operators   = {"=","==","<",">",">=","<=","+","-","*","/","%","(",")","{","}","[","]",","} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
+local operators   = {"=","==","<",">",">=","<=","+","-","*","/","%","(",")","{","}","[","]",",","//"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local mNIL = {}
 
 -- locals are faster than gloabls
@@ -133,7 +133,7 @@ local function chop(mystring,pure,atrack)
             chopped[#chopped+1]=gword
          end
          local ci=i+2
-         gword = "-- comment: "..mid(mystring,ci,#mystring-ci)
+         gword = "// comment: "..mid(mystring,ci,#mystring-ci)
       elseif c=='"' and (not openstring) then 
          openstring=true
          if gword~="" then 
