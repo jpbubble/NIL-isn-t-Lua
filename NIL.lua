@@ -134,6 +134,7 @@ local function chop(mystring,pure,atrack)
          end
          local ci=i+2
          gword = "// comment: "..mid(mystring,ci,#mystring-ci)
+         break
       elseif c=='"' and (not openstring) then 
          openstring=true
          if gword~="" then 
@@ -181,6 +182,7 @@ local function chop(mystring,pure,atrack)
       end
   end
   assert(not openstring,"Unfinished string in "..track)
+  if gword~="nil" then chopped[#chopped+1] = gword end
   --]]
   if pure then return chopped end
   local ret = {}
