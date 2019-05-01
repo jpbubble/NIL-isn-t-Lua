@@ -10,6 +10,7 @@ local NIL=require "NIL"
 local NILCode = [[
     // Testing!
     #macro HW "Hello World!"
+    print("Hallo Welt") // This German variant was to test if this worked in both WITH and WITHOUT macros
     print(HW)
 ]]
 local NILTrans = NIL.Translate(NILCode,"NILCode")

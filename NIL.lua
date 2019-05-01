@@ -28,6 +28,7 @@ local tonumber=tonumber
 -- A few functions I need to get NIL to work anyway!
 local replace = string.gsub
 local ASC=string.byte
+local sprintf = string.format
 
 local function split(inputstr, sep)
         if sep == nil then
@@ -124,10 +125,11 @@ local function chop(mystring,pure,atrack)
   local gword = ""
   local instring
   local openstring=nil
+  local wt=""
   for i=1,#mystring do
       local c=mid(mystring,i,1)
       local b=ASC(c)
-      local wt=""
+      -- print(sprintf("%s: Character pos %4d/%4d; char %2X/%3d/%s; Word: %s; str: %s; wt: %s; << \"%s\"",track,i,#mystring,b,b,c,gword,openstring or "<< nil >>",wt,mystring)) -- debugline
       if i<#mystring and mid(mystring,i,2) == "//" and (not openstring) then
          if gword~="" then 
             chopped[#chopped+1]=gword
@@ -135,21 +137,15 @@ local function chop(mystring,pure,atrack)
          local ci=i+2
          gword = "// comment: "..mid(mystring,ci,#mystring-ci)
          break
-      elseif c=='"' and (not openstring) then 
+      elseif (c=='"' or c=="'") and (not openstring) then 
          openstring=true
          if gword~="" then 
             chopped[#chopped+1]=gword
-            gword='"'
+            gword=c
          end
-         openstring='"'
-      elseif c=="'" and (not openstring) then 
-         openstring=true
-         if gword~="" then 
-            chopped[#chopped+1]=gword
-            gword="'"
-         end
-         openstring="'"
+         openstring=c
       elseif (c=='"' or c=="'") and openstring==c then 
+         if (left(gword,1)~=c) then gword=c..gword end
          chopped[#chopped+1]=gword..c
          gword=""
          openstring=nil
@@ -181,7 +177,7 @@ local function chop(mystring,pure,atrack)
         wt="txt"
       end
   end
-  assert(not openstring,"Unfinished string in "..track)
+  assert(not openstring,"NC: Unfinished string in "..track)
   if gword~="nil" then chopped[#chopped+1] = gword end
   --]]
   if pure then return chopped end
@@ -197,8 +193,12 @@ local function chop(mystring,pure,atrack)
          word.type="NIL_directive"
       elseif left(e,1)=="#" then
          word.type="ElementCounter"
+      elseif left(e,2) == "//" then
+         word.type="Comment"
       elseif tcontains(nilkeywords,word.word) then
          word.type = "NILKeyword"
+      elseif tcontains(operators,word.word) then
+         word.type = "Operator"
       elseif tonumber(word.word) then -- If not a number, 'tonumber' returns 'nil' causing the boolean expression to be false.
          word.type ='number' 
       elseif (left(word.word,1)=='"' and right(word.word=='"') or (left(word.word,1)=="'" and right(word.word,1)=="'")) then
@@ -228,10 +228,10 @@ function mNIL.Translate(script,chunk)
              line = replace(line,mak,rep)
          end end
          -- Let's chop the line up, shall we?
-         local chopped = chop(line)
+         local chopped = chop(line,false,track)
          if prefixed(line,"#") then
             if chopped[1].word=="#macro" or chopped[1].word=="#localmacro" then
-               assert(#chopped>=3,"invalid macro defintion in "..track)
+               assert(#chopped>=3,"NT: Invalid macro defintion in "..track)
                local rest = ""
                local wmacro
                for i,r in ipairs(chopped) do
@@ -247,11 +247,16 @@ function mNIL.Translate(script,chunk)
             -- TODO: Try to detect declarations
          else
             for i,v in ipairs(chopped) do
-                assert(v.type~="Unknown","Unknown term \""..v.word.."\" in "..track)
+                assert(v.type~="Unknown","NT: Unknown term \""..v.word.."\" in "..track)
                 if i~=1 then ret = ret .. " " end
-                ret = ret .. v.word
+                if prefixed(v.word,"//") then 
+                   ret = ret .. "--"..Right(v.word,#v.word-2)
+                else
+                   ret = ret .. v.word
+                end
             end
          end
+    ret = ret .."\n";
     end
     return ret
 end
