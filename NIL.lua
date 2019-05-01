@@ -9,8 +9,8 @@
 -- Variables
 local macros = {}
 local vars = {}
-local luakeywords = {"if","do","for","while","then","repeat","until"}
-local nilkeywords = {"number","int","void","string","var","return","module","class", "function","global"}
+local luakeywords = {"if","do","for","while","then","repeat"}
+local nilkeywords = {"number","int","void","string","var","return","module","class", "function","global","end","until"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"=","==","<",">",">=","<=","+","-","*","/","%"}
 local mNIL = {}
 
@@ -112,7 +112,7 @@ local function chop(mystring,pure)
      wstring = tstring
      tstring = replace(tstring,"\r", " ")
      tstring = replace(tstring,"\t", " ")
-     tstring = replace(tstring("  ", " "))
+     tstring = replace(tstring,"  ", " ")
   until wstring == tstring
   local chopped=split(tstring)
   if pure then return chopped end
@@ -122,19 +122,19 @@ local function chop(mystring,pure)
       ret[#ret+1]=word
       word.word=e
       word.type="Unknown"
-      if     tcontains(luakeywords) then
+      if     tcontains(luakeywords,word.word) then
          word.type="LuaKeyword"
       elseif left(e,1)=="#" and c==1 then
          word.type="NIL_directive"
       elseif left(e,1)=="#" then
          word.type="ElementCounter"
-      elseif tcontains(nilkeywords) then
+      elseif tcontains(nilkeywords,word.word) then
          word.type = "NILKeyword"
       elseif tonumber(word.word) then -- If not a number, 'tonumber' returns 'nil' causing the boolean expression to be false.
          word.type ='number' 
       elseif (left(word.word,1)=='"' and right(word.word=='"') or (left(word.word,1)=="'" and right(word.word,1)=="'")) then
          word.type = "string"
-      elseif word.vars[e] then
+      elseif vars[e] then
          word.type = "NIL_identifier"
          word.NILType = word.vars[e]
       elseif _G[e] then
@@ -152,7 +152,7 @@ function mNIL.Translate(script,chunk)
     local lmacro = {}
     local amacro = {lmacro,macros}
     for linenumber,getrawline in itpairs(lines) do
-         local track = "line #"..linenumber.. "; chunk: "..chunk
+         local track = "line #"..linenumber.. "; chunk: "..(chunk or 'He-Who-Must-Not-Be-Name')
          local line = getrawline
          -- Let's first see what macros we have
          for _,m in ipairs(amacro) do for mak,rep in spairs(m) do
@@ -162,27 +162,29 @@ function mNIL.Translate(script,chunk)
          local chopped = chop(line)
          if prefixed(line,"#") then
             if chopped[1].word=="#macro" or chopped[1].word=="#localmacro" then
-               assert(#chopped>=3,"invalid macro defintion in line #"..linenumber.."; chunk: "..chunk)
+               assert(#chopped>=3,"invalid macro defintion in "..track)
                local rest = ""
                local wmacro
                for i,r in ipairs(chopped) do
-                   if i> 3 then ret=rest.." " end
+                   if i> 3 then rest=rest.." " end
                    if i>=3 then rest=rest..chopped[i].word end
                end
                if chopped[1].word=="#macro" then wmacro=macros else wmacro=lmacro end
                assert(not wmacro[chopped[2].word] , "Duplicate macro in "..track)
                wmacro[chopped[2].word] = rest
-               ret = ret .. "--[[ defined macro "..wmacro[2].word.." to "..rest.." ]]\n"
+               ret = ret .. "--[[ defined macro "..chopped[2].word.." to "..rest.." ]]\n"
             end
          elseif chopped[1].type=="NILKeyword" then
             -- TODO: Try to detect declarations
          else
-            for _,v in ipairs(chopped) do
+            for i,v in ipairs(chopped) do
                 assert(v.type~="Unknown","Unknown term \""..v.word.."\" in "..track)
-                
+                if i~=1 then ret = ret .. " " end
+                ret = ret .. v.word
             end
          end
     end
+    return ret
 end
 
 function mNIL.Load(script,chunk)
@@ -198,3 +200,4 @@ function mNIL.LoadFile(file,chunk)
 	return mNIL.Load(content,chunk or file)
 end
 
+return mNIL
