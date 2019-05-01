@@ -1,0 +1,2 @@
+# LAAAAZY!
+lua TestNIL.lua
