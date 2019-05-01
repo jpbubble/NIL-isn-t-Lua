@@ -11,7 +11,7 @@ local macros = {}
 local vars = {}
 local luakeywords = {"if","do","for","while","then","repeat"}
 local nilkeywords = {"number","int","void","string","var","return","module","class", "function","global","end","until"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
-local operators   = {"=","==","<",">",">=","<=","+","-","*","/","%"}
+local operators   = {"=","==","<",">",">=","<=","+","-","*","/","%","(",")","{","}","[","]",","} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local mNIL = {}
 
 -- locals are faster than gloabls
@@ -27,6 +27,7 @@ local tonumber=tonumber
 
 -- A few functions I need to get NIL to work anyway!
 local replace = string.gsub
+local ASC=string.byte
 
 local function split(inputstr, sep)
         if sep == nil then
@@ -104,7 +105,9 @@ local function spairs(t, order)
     end
 end
 
-local function chop(mystring,pure) 
+local function chop(mystring,pure,atrack) 
+  local track = atrack or "???"
+  --[[ primitive method
   local i=0
   local wstring
   local tstring  = mystring
@@ -115,6 +118,70 @@ local function chop(mystring,pure)
      tstring = replace(tstring,"  ", " ")
   until wstring == tstring
   local chopped=split(tstring)
+  -- ]]  
+  -- --[[ 'pro' method
+  local chopped = {}
+  local gword = ""
+  local instring
+  local openstring=nil
+  for i=1,#mystring do
+      local c=mid(mystring,i,1)
+      local b=ASC(c)
+      local wt=""
+      if i<#mystring and mid(mystring,i,2) == "//" and (not openstring) then
+         if gword~="" then 
+            chopped[#chopped+1]=gword
+         end
+         local ci=i+2
+         gword = "-- comment: "..mid(mystring,ci,#mystring-ci)
+      elseif c=='"' and (not openstring) then 
+         openstring=true
+         if gword~="" then 
+            chopped[#chopped+1]=gword
+            gword='"'
+         end
+         openstring='"'
+      elseif c=="'" and (not openstring) then 
+         openstring=true
+         if gword~="" then 
+            chopped[#chopped+1]=gword
+            gword="'"
+         end
+         openstring="'"
+      elseif (c=='"' or c=="'") and openstring==c then 
+         chopped[#chopped+1]=gword..c
+         gword=""
+         openstring=nil
+      elseif openstring then
+         gword=gword..c
+      elseif c=="\t" or c==" " or c=="\r" or c=="\n" then -- (normally \n should be impossible, but 'just in case')
+         if gword~="" then 
+            chopped[#chopped+1]=gword
+            gword=""
+         end
+         wt=""
+      elseif c=="#" then
+         assert(gword=="","Unexpected # in "..track)
+         gword="#"
+         wt="txt"
+      elseif (tcontains(operators,c) or (i>1 and tcontains(operators,mid(mystring,i-1,2))) or (i<#mystring and tcontains(operators,mid(mystring,i+1,2)))) then
+         if wt=="txt" then
+            chopped[#chopped+1]=gword
+            gword=""
+         end            
+         gword=gword..c
+         wt="op"
+      elseif c=="_" or (b>=65 and b<=90) or (b>=48 and b<=57) or (b>=97 and b<=122) or (c==".") then
+        if wt=="op" then
+           chopped[#chopped+1]=gword
+           gword=""
+        end
+        gword = gword..c
+        wt="txt"
+      end
+  end
+  assert(not openstring,"Unfinished string in "..track)
+  --]]
   if pure then return chopped end
   local ret = {}
   for c,e in ipairs(chopped) do
@@ -136,7 +203,7 @@ local function chop(mystring,pure)
          word.type = "string"
       elseif vars[e] then
          word.type = "NIL_identifier"
-         word.NILType = word.vars[e]
+         word.NILType = word.vars[e]      
       elseif _G[e] then
          word.type = "Lua_identifier"
          word.LuaType = type(_G[e])
