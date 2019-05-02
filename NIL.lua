@@ -11,10 +11,10 @@ local macros = {["!="]="~="}
 local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
-local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", 
+local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not",
                      "switch","case","default","forever"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
-local nilkeywords = {"number","int","void","string","var","module","class", "function","global"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
-local operators   = {":","==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
+local nilkeywords = {"number","int","void","string","var","module","class", "function","global","table"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
+local operators   = {":","==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void"}
 local mNIL = {}
 
@@ -470,6 +470,25 @@ function mNIL.Translate(script,chunk)
                       ret = ret .. " until "
                       vars[#scopes] = nil
                       scopes[#scopes] = nil
+                   elseif v.word=="for" then
+                      -- print("for!")
+                      ret = ret .. " for "
+                      local fi=i+1
+                      newscope("for",linenumber)
+                      vars[#scopes] = {}
+                      scopestart="do"
+                      repeat
+                         local fv = chopped[fi]
+                         local fn = chopped[fi+1]
+                         --print("for-test",fi,fv,fn)
+                         assert(fv and fn and (fn.word=="," or fn.word=="=" or fn.word=="in"),"NT: Syntax error in "..track)
+                         assert(ValidForIdentifier(fv.word),"NT: For variable declarion illegal in "..track)
+                         assert(not vars[#scopes][fv.word],"NT: Duplicate for variable in "..track)
+                         vars[#scopes][fv.word] = {idtype='var'}
+                         fi = fi + 2
+                      until fn.word~=","
+                   elseif v.word=="in" and scopes[#scopes].kind=="for" and scopestart=="do" then
+                       ret = ret .. " in "
                    elseif v.word=="break"  then
                       ret = ret .. " break "
                    elseif v.word=="end" then

@@ -44,7 +44,15 @@ local NILCode = [[
     while foreveralone % 5 != 0
        foreveralone=foreveralone + 3
     end
-    
+    for i = 1,10,20 
+        print("Hello: "..i)
+    end
+    table tab
+    tab[1]="Hoi"
+    tab[2]="Dag"
+    for i,d in ipairs(tab)
+        print(i,d)
+    end
     // print(localint) // should cause an error if not set as a comment!
 ]]
 local NILTrans = NIL.Translate(NILCode,"NILCode")
