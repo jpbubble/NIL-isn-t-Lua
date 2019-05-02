@@ -7,14 +7,14 @@
 ]]
 
 -- Variables
-local macros = {}
+local macros = {["!="]="~="}
 local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", 
                      "switch","case","default","forever"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"number","int","void","string","var","module","class", "function","global"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
-local operators   = {"!=","~=","==",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
+local operators   = {":","==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void"}
 local mNIL = {}
 
@@ -200,11 +200,11 @@ local function chop(amystring,pure,atrack)
          assert(gword=="","Unexpected # in "..track)
          gword="#"
          wt="txt"
-      elseif (tcontains(operators,c) or (i>1 and tcontains(operators,mid(mystring,i-1,2))) or (i<#mystring and tcontains(operators,mid(mystring,i+1,2)))) then
+      elseif (i>1 and tcontains(operators,mid(mystring,i-1,2))) or (i<#mystring and tcontains(operators,mid(mystring,i,2))) or tcontains(operators,c) then
          if wt=="txt" then
             chopped[#chopped+1]=gword
             gword=""
-         end            
+         end
          gword=gword..c
          wt="op"
       elseif c=="_" or (b>=65 and b<=90) or (b>=48 and b<=57) or (b>=97 and b<=122) or (c==".") then
@@ -214,6 +214,8 @@ local function chop(amystring,pure,atrack)
         end
         gword = gword..c
         wt="txt"
+      else 
+        error("NC: I don't know character: "..c.. "; "..track)
       end
   end
   assert(not openstring,"NC: Unfinished string in "..track)
@@ -423,6 +425,7 @@ function mNIL.Translate(script,chunk)
                 end
                 --]]
                 assert(IsVar or v.type~="Unknown","NT: Unknown term \""..v.word.."\" in "..track)
+                -- if (v.type=="Operator") then print(v.word.." > "..dbg("chopped",chopped)) end
                 -- print(dbg('v',v),"\n"..dbg('scopes',scopes))
                 if i~=1 then ret = ret .. " " end
                 if prefixed(v.word,"//") then 
