@@ -434,6 +434,10 @@ function mNIL.Translate(script,chunk)
                    elseif v.word=="do" then
                       ret = ret .. " do "
                       newscope("do",linenumber)
+                   elseif v.word=="if" then
+                      ret = ret .. " if "
+                      newscope("if",linenumber)
+                      scopestart="then"
                    elseif v.word=="end" then
                       assert(scopelevel()>0,"NT: Key word 'end' encountered, without any open scope!  "..track)
                       if scopetype()=="repeat" then

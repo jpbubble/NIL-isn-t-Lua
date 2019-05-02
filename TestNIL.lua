@@ -22,6 +22,10 @@ local NILCode = [[
        int localint = 1
        print(localint)
     end
+    if Paws==4 then print('Four paws') end
+    if Cow=="Moo"
+       print("The cow moos")
+    end
     // print(localint) // should cause an error if not set as a comment!
 ]]
 local NILTrans = NIL.Translate(NILCode,"NILCode")
