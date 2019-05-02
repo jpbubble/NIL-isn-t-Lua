@@ -15,6 +15,9 @@ local NILCode = [[
     
     string Cow = "Moo"
     global int Paws = 4
+    int mPaws
+    mPaws = Paws * 20
+    print(Paws,Cow,mPaws)
 ]]
 local NILTrans = NIL.Translate(NILCode,"NILCode")
 

@@ -13,7 +13,7 @@ local functions = {}
 local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "switch","case","default"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"number","int","void","string","var","module","class", "function","global"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
-local operators   = {"=","==","<",">",">=","<=","+","-","*","/","%","(",")","{","}","[","]",",","//","!=","~="} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
+local operators   = {"!=","~=","==","=","<",">",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void"}
 local mNIL = {}
 
@@ -27,6 +27,7 @@ local pairs=pairs
 local table=table
 local type=type
 local tonumber=tonumber
+local print=print
 
 -- A few functions I need to get NIL to work anyway!
 local replace = string.gsub
@@ -121,8 +122,8 @@ local function ValidForIdentifier(str)
    return ret
 end
 
-local function chop(mystring,pure,atrack) 
-  if trim(mystring)=="" then return {} end
+local function chop(amystring,pure,atrack) 
+  if trim(amystring)=="" then return {} end
   local track = atrack or "???"
   --[[ primitive method
   local i=0
@@ -142,6 +143,27 @@ local function chop(mystring,pure,atrack)
   local instring
   local openstring=nil
   local wt=""
+  -- dirty force fix on identifiers not taking well to ) next to them (for reasons beyond me)
+  -- Due to replace using 'RegEx' I'll have to do this the 'long way'
+  local mystring=""
+  do 
+   local o = 0
+   for i=1,#amystring do
+      if o==0 then
+        for _,op in ipairs(operators) do 
+            if mid(amystring,i,#op)==op then o=#op mystring = mystring .. " "..op.." " break end
+        end
+      end
+      if o>0 then o = o - 1 elseif mid(amystring,i,1)=="\t" or mid(amystring,i,1)=="\r" then mystring = mystring .. " " else mystring = mystring .. mid(amystring,i,1) end
+   end
+   local changed
+   repeat
+     local ns = replace(mystring,"  "," ")
+     changed = ns~=mystring
+     mystring=ns
+   until not changed
+   -- print ( mystring )
+  end
   for i=1,#mystring do
       local c=mid(mystring,i,1)
       local b=ASC(c)
@@ -187,7 +209,7 @@ local function chop(mystring,pure,atrack)
       elseif c=="_" or (b>=65 and b<=90) or (b>=48 and b<=57) or (b>=97 and b<=122) or (c==".") then
         if wt=="op" then
            chopped[#chopped+1]=gword
-           gword=""
+           gword="" 
         end
         gword = gword..c
         wt="txt"
@@ -239,6 +261,27 @@ function mNIL.Translate(script,chunk)
     local scopes = {[0]="Base Scope"}
     local scopelevel = function() return #scopes end
     local scopetype = function() return scopes[#scopes] end
+    local function dbg(myvarname,myvar,level)
+       local ret = ""
+       for i=1,level or 1 do ret = ret .."\t" end
+       ret = ret .. sprintf("%s %s: ",type(myvar),myvarname)
+       -- I really NEED a case routine!
+       if type(myvar)=="nil" then
+          ret = ret .. "nil\n"
+       elseif type(myvar) == "userdata" or type(myvar) == "function" then
+          ret = ret .. "~\n"
+       elseif type(myvar) == "string" or type(myvar)=="number" then
+          ret = ret .. myvar .. "\n"
+       elseif type(myvar) == "table" then
+          ret = ret .. "\n"
+          for k,v in pairs(myvar) do
+              ret = ret .. dbg(k,v,(level or 1)+1)
+          end
+       else
+          ret = ret .. "WTF???\n" -- This should never be possible to happen!
+       end
+       return ret
+    end
     vars.globals = vars.globals or {}
     for linenumber,getrawline in itpairs(lines) do
          vars[scopelevel()] = vars[scopelevel()] or {}
@@ -298,7 +341,7 @@ function mNIL.Translate(script,chunk)
                     functions[id]
                   ),"NT: Duplicate identifier \""..id.."\" in "..track)
             end
-            if chopped[tpestart+2].word=="(" then   
+            if #chopped>tpestart+2 and chopped[tpestart+2].word=="(" then   
                assert(
                     chopped[#chopped].word==")" or 
                     (
@@ -311,7 +354,7 @@ function mNIL.Translate(script,chunk)
                --print(idtype)
                assert(idtype~="void","NT: Type 'void' has been reserved for functions only!")
                local pdefault,psdefault
-               if chopped[tpestart+2].word=="=" then
+               if #chopped>tpestart+2 and chopped[tpestart+2].word=="=" then
                   assert( #chopped>=tpestart+3 , "NT: Syntax error")
                   pdefault=chopped[tpestart+3]
                   psdefault=nil; if pdefault then psdefault=pdefault.word end
@@ -347,16 +390,27 @@ function mNIL.Translate(script,chunk)
                end
                ret = ret .. sprintf("%s = %s",id,psdefault or default)
                
-            end
+            end               
          else
             for i,v in ipairs(chopped) do
-                assert(v.type~="Unknown","NT: Unknown term \""..v.word.."\" in "..track)
+              if v.word~="" then -- I don't understand how these come in, but they do!
+                -- For now the order doesn't matter. When NIL can get stricter in variable checks, the order will have to be reversed.
+                local IsVar = vars.globals[v.word]
+                for i=0,scopelevel() do IsVar = IsVar or vars[i][v.word] end
+                --[[
+                if not(IsVar or v.type~="Unknown") then
+                   print(dbg("chopped",chopped,0))
+                   print(dbg("vars",vars,0),IsVar~=nil,v.type,v.word)
+                end
+                --]]
+                assert(IsVar or v.type~="Unknown","NT: Unknown term \""..v.word.."\" in "..track)
                 if i~=1 then ret = ret .. " " end
                 if prefixed(v.word,"//") then 
                    ret = ret .. "--"..Right(v.word,#v.word-2)
                 else
                    ret = ret .. v.word
                 end
+              end
             end
          end
     ret = ret .."\n";
