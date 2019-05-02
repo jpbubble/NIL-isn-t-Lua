@@ -413,6 +413,7 @@ function mNIL.Translate(script,chunk)
                 end
                 ]]
                 -- For now the order doesn't matter. When NIL can get stricter in variable checks, the order will have to be reversed.
+                vars[#scopes] = vars[#scopes] or {}
                 local IsVar = vars.globals[v.word]
                 for i=0,scopelevel() do IsVar = IsVar or vars[i][v.word] end
                 --[[
@@ -438,6 +439,19 @@ function mNIL.Translate(script,chunk)
                       ret = ret .. " if "
                       newscope("if",linenumber)
                       scopestart="then"
+                   elseif v.word=="elseif" then
+                      assert(scopes[#scopes].kind=="if" or scopes[#scopes]=="elseif","NT: 'elseif' can only be used in connection with an 'if'/'elseif' scope in "..track)
+                      ret = ret .. " elseif "
+                      vars[#scopes] = nil
+                      scopes[#scopes] = nil
+                      newscope("if",linenumber)
+                      scopestart="then"
+                   elseif v.word=="else" then
+                      assert(scopes[#scopes].kind=="if" or scopes[#scopes]=="elseif","NT: 'elseif' can only be used in connection with an 'if'/'elseif' scope in "..track)
+                      ret = ret .. " else "
+                      vars[#scopes] = nil
+                      scopes[#scopes] = nil
+                      newscope("else",linenumber)
                    elseif v.word=="end" then
                       assert(scopelevel()>0,"NT: Key word 'end' encountered, without any open scope!  "..track)
                       if scopetype()=="repeat" then
@@ -458,6 +472,7 @@ function mNIL.Translate(script,chunk)
             end
          end
       if scopestart then ret = ret .. " "..scopestart end
+      scopestart = nil
       ret = ret .."\n";
     end
     if scopelevel()~=0 then

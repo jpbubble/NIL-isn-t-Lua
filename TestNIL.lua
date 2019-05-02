@@ -25,6 +25,10 @@ local NILCode = [[
     if Paws==4 then print('Four paws') end
     if Cow=="Moo"
        print("The cow moos")
+    elseif Cow=="woof"
+       print("The cow speaks dog languages")
+    else
+       print("Whatever")
     end
     // print(localint) // should cause an error if not set as a comment!
 ]]
