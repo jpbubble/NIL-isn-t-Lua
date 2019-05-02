@@ -405,6 +405,13 @@ function mNIL.Translate(script,chunk)
          else
             for i,v in ipairs(chopped) do
               if v.word~="" then -- I don't understand how these come in, but they do!
+                --[[
+                if i==1 then
+                  local tabs=#scopes
+                  if v.word=="end" or v.word=="forever" or v.word=="until" then tabs=tabs-1 end
+                  for j=1,tabs do ret = ret .. "\t" end
+                end
+                ]]
                 -- For now the order doesn't matter. When NIL can get stricter in variable checks, the order will have to be reversed.
                 local IsVar = vars.globals[v.word]
                 for i=0,scopelevel() do IsVar = IsVar or vars[i][v.word] end
