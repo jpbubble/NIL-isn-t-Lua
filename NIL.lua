@@ -428,7 +428,7 @@ function mNIL.Translate(script,chunk)
                 if prefixed(v.word,"//") then 
                    ret = ret .. "--"..Right(v.word,#v.word-2)
                 elseif luakeywords[v.word] or v.type=="LuaKeyword" then
-                   print ("KEYWORD "..v.word)
+                   -- print ("KEYWORD "..v.word)
                    if scopestart==v.word then
                       ret = ret .. " "..v.word.." "
                       scopestart=nil
@@ -446,6 +446,10 @@ function mNIL.Translate(script,chunk)
                       scopes[#scopes] = nil
                       newscope("if",linenumber)
                       scopestart="then"
+                   elseif v.word=="while" then
+                      ret = ret .. " while "
+                      newscope("while",linenumber)
+                      scopestart="do"
                    elseif v.word=="else" then
                       assert(scopes[#scopes].kind=="if" or scopes[#scopes]=="elseif","NT: 'elseif' can only be used in connection with an 'if'/'elseif' scope in "..track)
                       ret = ret .. " else "
