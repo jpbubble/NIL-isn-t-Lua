@@ -11,10 +11,10 @@ local macros = {}
 local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
-local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", 
+local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", 
                      "switch","case","default","forever"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"number","int","void","string","var","module","class", "function","global"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
-local operators   = {"!=","~=","==","=","<",">",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
+local operators   = {"!=","~=","==",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void"}
 local mNIL = {}
 
@@ -456,6 +456,19 @@ function mNIL.Translate(script,chunk)
                       vars[#scopes] = nil
                       scopes[#scopes] = nil
                       newscope("else",linenumber)
+                   elseif v.word=="repeat" then
+                      ret = ret .. " repeat "
+                      newscope("repeat",linenumber)
+                   elseif v.word=="forever" then
+                      ret = ret .. " until false "
+                      vars[#scopes] = nil
+                      scopes[#scopes] = nil
+                   elseif v.word=="until" then
+                      ret = ret .. " until "
+                      vars[#scopes] = nil
+                      scopes[#scopes] = nil
+                   elseif v.word=="break"  then
+                      ret = ret .. " break "
                    elseif v.word=="end" then
                       assert(scopelevel()>0,"NT: Key word 'end' encountered, without any open scope!  "..track)
                       if scopetype()=="repeat" then

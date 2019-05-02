@@ -33,6 +33,17 @@ local NILCode = [[
     else
        print("Whatever")
     end
+    int foreveralone=1
+    repeat
+       foreveralone = foreveralone + 1
+       if foreveralone>10 then break end
+    forever
+    repeat
+       foreveralone = foreveralone - 1
+    until foreveralone <= 0
+    while foreveralone % 5 != 0
+       foreveralone=foreveralone + 3
+    end
     
     // print(localint) // should cause an error if not set as a comment!
 ]]
