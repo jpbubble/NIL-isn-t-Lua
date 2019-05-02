@@ -11,7 +11,8 @@ local macros = {}
 local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
-local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "switch","case","default"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
+local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", 
+                     "switch","case","default","forever"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"number","int","void","string","var","module","class", "function","global"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"!=","~=","==","=","<",">",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void"}
@@ -258,9 +259,12 @@ function mNIL.Translate(script,chunk)
     local lines = split(script,"\n")
     local lmacro = {}
     local amacro = {lmacro,macros}
-    local scopes = {[0]="Base Scope"}
+    local scopes = {[0]={kind="Base Scope",line=0}}
     local scopelevel = function() return #scopes end
-    local scopetype = function() return scopes[#scopes] end
+    local scopetype = function() return scopes[#scopes].kind end
+    local scopestart = nil
+    local allowrepeatend
+    local function newscope(kind,ln) scopes[#scopes+1] = { kind=kind, line=ln } end
     local function dbg(myvarname,myvar,level)
        local ret = ""
        for i=1,level or 1 do ret = ret .."\t" end
@@ -308,6 +312,13 @@ function mNIL.Translate(script,chunk)
                assert(not wmacro[chopped[2].word] , "Duplicate macro in "..track)
                wmacro[chopped[2].word] = rest
                ret = ret .. "--[[ defined macro "..chopped[2].word.." to "..rest.." ]]\n"
+            elseif chopped[1].word=="#repeatmayend" then
+               local s = "yes"
+               if chopped[2] then s=chopped[2].word end
+               s = s:upper()
+               allowrepeatend = s~="NO" and s~="FALSE" and s~="OFF"
+            else
+               error("Unexpected directive in "..track)
             end
          elseif chopped[1].type=="NILKeyword" then -- only for declarations!
             local tpestart=1
@@ -404,16 +415,44 @@ function mNIL.Translate(script,chunk)
                 end
                 --]]
                 assert(IsVar or v.type~="Unknown","NT: Unknown term \""..v.word.."\" in "..track)
+                -- print(dbg('v',v),"\n"..dbg('scopes',scopes))
                 if i~=1 then ret = ret .. " " end
                 if prefixed(v.word,"//") then 
                    ret = ret .. "--"..Right(v.word,#v.word-2)
+                elseif luakeywords[v.word] or v.type=="LuaKeyword" then
+                   print ("KEYWORD "..v.word)
+                   if scopestart==v.word then
+                      ret = ret .. " "..v.word.." "
+                      scopestart=nil
+                   elseif v.word=="do" then
+                      ret = ret .. " do "
+                      newscope("do",linenumber)
+                   elseif v.word=="end" then
+                      assert(scopelevel()>0,"NT: Key word 'end' encountered, without any open scope!  "..track)
+                      if scopetype()=="repeat" then
+                         assert(allowrepeatend,"Keyword 'end' may in this setting not be used to end a repeat. You can change that with the '#repeatmayend' directive.")
+                         ret = ret .. " until false "
+                         scopes[#scopes] = nil
+                      else
+                         scopes[scopelevel()] = nil
+                         ret = ret .. "end"
+                      end
+                   else 
+                      error("NT: Keyword '"..v.word.."' not expected in this situation in "..track)   
+                   end
                 else
                    ret = ret .. v.word
                 end
               end
             end
          end
-    ret = ret .."\n";
+      if scopestart then ret = ret .. " "..scopestart end
+      ret = ret .."\n";
+    end
+    if scopelevel()~=0 then
+       error(
+         sprintf("NT: %s-scope in line #%d not properly ended, yet the end of the chunk has been reached in %s",scopes[#scopes].kind,scopes[#scopes].line,chunk or "The chunk without a name")
+       )
     end
     return ret
 end

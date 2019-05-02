@@ -18,6 +18,11 @@ local NILCode = [[
     int mPaws
     mPaws = Paws * 20
     print(Paws,Cow,mPaws)
+    do 
+       int localint = 1
+       print(localint)
+    end
+    // print(localint) // should cause an error if not set as a comment!
 ]]
 local NILTrans = NIL.Translate(NILCode,"NILCode")
 
