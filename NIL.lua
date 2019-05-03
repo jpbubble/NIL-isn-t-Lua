@@ -13,9 +13,9 @@ local functions = {}
 local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and",
                      "switch","case","default","forever"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
-local nilkeywords = {"number","int","void","string","var","module","class", "function","global","table","implementation","impl","forward"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
+local nilkeywords = {"number","int","void","string","var","module","class", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {":","==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
-local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void"}
+local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
 local mNIL = {}
 
 -- locals are faster than gloabls
@@ -501,6 +501,11 @@ function mNIL.Translate(script,chunk)
                   default="{}" 
                   if pdefault then
                      error("NT: Full table definition from variable declaration not yet supported in "..track)
+                  end
+               elseif idtype=="boolean" then
+                  default="false"
+                  if pdefault then
+                     assert(pdefault.word=="true" or pdefault.word=="false","NT: Constant boolean expected in "..track)
                   end
                elseif idtype=="var" then
                   if pdefault then

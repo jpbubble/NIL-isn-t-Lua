@@ -53,6 +53,10 @@ local NILCode = [[
     for i,d in ipairs(tab)
         print(i,d)
     end
+    
+    bool b1 = true
+    boolean b2 = false
+    bool b3
     // print(localint) // should cause an error if not set as a comment!
 ]]
 local NILTrans = NIL.Translate(NILCode,"NILCode")
