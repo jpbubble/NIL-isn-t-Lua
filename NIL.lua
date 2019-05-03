@@ -255,6 +255,18 @@ local function chop(amystring,pure,atrack)
   return ret
 end
 
+-- Stuff that NIL will need to make classes possible.
+NILClass = {}
+
+function NILClass.DeclareClass(name,identifiers,extend)
+   
+end
+
+function NILClass.NewFromClass(classname,consparam)
+
+end
+
+
 -- Translator itself
 function mNIL.Translate(script,chunk)
     local ret = ""
