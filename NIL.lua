@@ -11,9 +11,9 @@ local macros = {["!="]="~="}
 local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
-local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not",
+local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and",
                      "switch","case","default","forever"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
-local nilkeywords = {"number","int","void","string","var","module","class", "function","global","table"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
+local nilkeywords = {"number","int","void","string","var","module","class", "function","global","table","implementation","impl","forward"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {":","==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void"}
 local mNIL = {}
@@ -266,7 +266,105 @@ function mNIL.Translate(script,chunk)
     local scopetype = function() return scopes[#scopes].kind end
     local scopestart = nil
     local allowrepeatend
+    local forwards = {}
     local function newscope(kind,ln) scopes[#scopes+1] = { kind=kind, line=ln } end
+    local function buildfunction(id,chopped,tpestart,track)        
+          -- error(chopped[tpestart].word) --check
+          assert(chopped[tpestart].word=="(","NI: Function builder has been pointed wrong! "..track)
+          local params = {}
+          local assertion
+          local wantass = ""
+          local i = tpestart+1
+          local function addassert(a,wa)
+             if wantass~="" then wantass=wantass..", " end wantass=wantass..wa 
+             if not a then return end
+             if assertion then
+                assertion = " and "..a
+             else
+                assertion = a
+             end
+          end
+          assert(chopped[i],"NT: Unfinished function definition in "..track)
+          while (chopped[i].word~=")") do
+             while (chopped[i] and chopped[i].word=="") do i=i+1 end
+             assert(chopped[i] and chopped[i+1],"NT: Unfinished function definition in "..track)
+             local w = chopped[i].word
+             local nw = chopped[i+1].word
+             if w.word=="var" then -- optional, but implemented in case people don't realize it! ^_^
+                addassert(nil,"var")
+                params[#params+1]=nw
+                chopped[i+1].type="Function Parameter"
+                i = i + 2 
+             elseif w=="string" then
+                params[#params+1]=nw
+                addassert( "type("..nw..")=='string'","string")
+                chopped[i+1].type="Function Parameter"
+                i = i + 2
+             elseif w=="int" or w=="number" then
+                params[#params+1]=nw
+                addassert( "type("..nw..")=='number'","number")
+                chopped[i+1].type="Function Parameter"
+                i = i + 2
+             elseif w=="bool" or w=="boolean" then
+                params[#params+1]=nw
+                addassert("type("..nw..")=='boolean'","boolean")
+                chopped[i+1].type="Function Parameter"
+                i = i + 2
+             elseif w=="table" then
+                params[#params+1]=nw
+                addassert( "(nw==nil or type(nw)=='table')","table")
+                chopped[i+1].type="Function Parameter"
+                i = i + 2
+             elseif w=="userdata" then
+                params[#params+1]=nw
+                addassert( "("..nw.."==nil or type("..nw..")=='userdata')","userdata")
+                chopped[i+1].type="Function Parameter"
+                i = i + 2
+             elseif w=="function" or w=="delegate" then
+                params[#params+1]=nw
+                addassert( "("..nw.."==nil or type("..nw..")=='function')","function")
+                chopped[i+1].type="Function Parameter"
+                i = i + 2
+             elseif classes[w] then
+                params[#params+1]=nw
+                addassert( "("..nw.."==nil or (type("..nw..")=='table' and "..nw.."._NIL_class='"..w.."')",w)
+                chopped[i+1].type="Function Parameter"
+                i = i + 2
+             else
+                params[#params+1]=w
+                chopped[i].type="Function Parameter"
+                i = i + 1
+             end
+             while (chopped[i] and chopped[i].word=="") do i=i+1 end
+             assert(chopped[i],"NT: Unexpected end of line in "..track)
+             assert(chopped[i].word=="," or chopped[i].word==")","NT: Syntax error in "..track.."\nExpected either a ',' or a ')' but not a '"..chopped[i].word.."'")
+             if chopped[i].word=="," then i=i+1 end
+          end          
+          local ret = "("
+          for i,p in ipairs(params) do
+              if tcontains(nilkeywords,p) or tcontains(luakeywords,p) then error("NT: Unexpected keyword '"..p.."' in "..track) end
+              if tcontains(operators,p) then error("NT: Unexpected operator '"..p.."' in "..track) end
+              assert(ValidForIdentifier(p),"NT: Invalid identifier name '"..p.."' in "..track) 
+              if i>1 then ret = ret ..", end " end
+              ret = ret .. p
+          end
+          ret = ret ..")"
+          return ret,params,assertion
+    end
+    local function StartFunctionScope(line,func,id)
+          ret = ret .. "function "..(id or "")..func.head
+          if func.assertion then ret = ret .." assert("..func.assertion..",'NR: Function did not receive the parameters the way it wanted!')" end
+          newscope("function",line)
+          local scope = scopes[#scopes]
+          scope.func = func
+          scope.idtype = func.idtype
+          vars[#scopes]={}
+          for _,p in ipairs(func.params) do
+              --print(#scopes,p,_)
+              vars[#scopes][p]={idtype='var'} -- A stricter setup can come later, but for now this will do!
+          end
+    end
+    
     local function dbg(myvarname,myvar,level)
        local ret = ""
        for i=1,level or 1 do ret = ret .."\t" end
@@ -289,8 +387,10 @@ function mNIL.Translate(script,chunk)
        return ret
     end
     vars.globals = vars.globals or {}
+    functions.globals = functions.globals or {}
     for linenumber,getrawline in itpairs(lines) do
          vars[scopelevel()] = vars[scopelevel()] or {}
+         functions[scopelevel()] =  functions[scopelevel()] or {}
          local track = "line #"..linenumber.. "; chunk: "..(chunk or 'He-Who-Must-Not-Be-Name')
          local line = getrawline
          -- Let's first see what macros we have
@@ -325,14 +425,18 @@ function mNIL.Translate(script,chunk)
          elseif chopped[1].type=="NILKeyword" then -- only for declarations!
             local tpestart=1
             local doglobal=false
+            local doforward=false
             local idtype
             local id
             local default = "nil"
+            local wscope = #scopes
             do local getout repeat
                getout=true
                if chopped[tpestart].word=="global" then 
                   doglobal=true getout=false tpestart = tpestart + 1 
-                  --print("GLOBAL DETECTED!")
+               elseif chopped[tpestart].word=="forward" then 
+                  doforward=true getout=false tpestart = tpestart + 1
+                  wscope='globals'
                end
             until getout end
             assert( chopped[tpestart].type=="NILKeyword" , "NT: declaration syntax error in "..track )
@@ -351,7 +455,7 @@ function mNIL.Translate(script,chunk)
                   not(
                     vars[scopetest][id] or 
                     classes[id] or 
-                    functions[id]
+                    functions[scopetest][id]
                   ),"NT: Duplicate identifier \""..id.."\" in "..track)
             end
             if #chopped>tpestart+2 and chopped[tpestart+2].word=="(" then   
@@ -361,11 +465,21 @@ function mNIL.Translate(script,chunk)
                        prefixed(chopped[#chopped].word,"") and 
                        chopped[#chopped-1].word==")"
                ),"NT: Incomplete function declaration")
-               functions[id] = { idtype=idtype}
-               error("NT: Functions not yet supported! Coming soon!")
+               -- print(dbg('chopped',chopped))
+               local fd,fp,fa = buildfunction(id,chopped,tpestart+2,track)
+               functions[wscope][id] = { idtype=idtype, head=fd, params=fp, assertion=fa }
+               -- print(dbg('functions',functions))
+               if not doglobal then ret = ret .. "local " end
+               if doforward then 
+                  ret = ret .. id.." = function() error('NR: Call to a foward function ("..id..") which has not yet been implemented!') end"
+                  forwards[id] = functions[id]
+               else
+                  StartFunctionScope(linenumber,functions[wscope][id],id)
+               end
             else
                --print(idtype)
-               assert(idtype~="void","NT: Type 'void' has been reserved for functions only!")
+               assert(idtype~="void","NT: Type 'void' has been reserved for functions only! "..track)
+               assert(not doforward,"NT: Keyword 'forward' is only valid for functions; "..track)
                local pdefault,psdefault
                if #chopped>tpestart+2 and chopped[tpestart+2].word=="=" then
                   assert( #chopped>=tpestart+3 , "NT: Syntax error")
@@ -380,7 +494,7 @@ function mNIL.Translate(script,chunk)
                elseif idtype=="string" then 
                   default='""'
                   if pdefault then
-                    print(pdefault.type)
+                    -- print(pdefault.type)
                     assert(pdefault.type=="string","NT: Constant string expected in "..track)
                   end  
                elseif idtype=="table" then 
@@ -416,8 +530,8 @@ function mNIL.Translate(script,chunk)
                 ]]
                 -- For now the order doesn't matter. When NIL can get stricter in variable checks, the order will have to be reversed.
                 vars[#scopes] = vars[#scopes] or {}
-                local IsVar = vars.globals[v.word]
-                for i=0,scopelevel() do IsVar = IsVar or vars[i][v.word] end
+                local IsVar = vars.globals[v.word] or functions.globals[v.word]
+                for i=0,scopelevel() do IsVar = IsVar or vars[i][v.word] or functions[i][v.word] end
                 --[[
                 if not(IsVar or v.type~="Unknown") then
                    print(dbg("chopped",chopped,0))
@@ -491,12 +605,19 @@ function mNIL.Translate(script,chunk)
                        ret = ret .. " in "
                    elseif v.word=="break"  then
                       ret = ret .. " break "
+                   elseif v.word=="or" or v.word=="and" or v.word=="not" then
+                      ret = ret .. " "..v.word.." "
                    elseif v.word=="end" then
                       assert(scopelevel()>0,"NT: Key word 'end' encountered, without any open scope!  "..track)
+                      vars[#scopes] = nil
+                      functions[#scopes] = nil
                       if scopetype()=="repeat" then
                          assert(allowrepeatend,"Keyword 'end' may in this setting not be used to end a repeat. You can change that with the '#repeatmayend' directive.")
                          ret = ret .. " until false "
                          scopes[#scopes] = nil
+                      elseif scopetype()=="function" then
+                         scopes[scopelevel()] = nil
+                         ret = ret .. "end"
                       else
                          scopes[scopelevel()] = nil
                          ret = ret .. "end"
