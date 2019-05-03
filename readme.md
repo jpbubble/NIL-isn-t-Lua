@@ -40,8 +40,9 @@ something like this:
 love.draw = void()
     love.graphics.print("Hello World",10,10)
 end
-~~~Lua
+~~~
 It should be translated to:
+~~~Lua
 love.draw = function()
     love.graphics.print("Hello World",10,10)
 end                                         
