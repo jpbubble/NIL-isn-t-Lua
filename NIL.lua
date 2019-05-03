@@ -12,8 +12,8 @@ local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and",
-                     "switch","case","default","forever"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
-local nilkeywords = {"number","int","void","string","var","module","class", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
+                     "switch","case","default","forever","module","class","static","get","set","readonly"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
+local nilkeywords = {"number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {":","==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
 local mNIL = {}
@@ -377,6 +377,105 @@ function mNIL.Translate(script,chunk)
           end
     end
     
+    local function ClassScope(chopped,track)
+            local tpestart=1
+            local dostatic=false
+            local doabstract=false
+            local doreadonly=false
+            local idtype
+            local id
+            local default = "nil"
+            local wscope = #scopes
+            local fields = {}
+            if prefixed(chopped[1].word,"//") then ret = ret .. "-- comment line!" return end
+            do local getout repeat
+               getout=true
+               if chopped[tpestart].word=="static" then 
+                  dostatic=true getout=false tpestart = tpestart + 1 
+               elseif chopped[tpestart].word=="abstract" then 
+                  doabstract=true getout=false tpestart = tpestart + 1
+               elseif chopped[tpestart].word=="readonly" then
+                  doreadonly=true getout=false tpestart = tpestart + 1
+               end
+            until getout end
+            assert( chopped[tpestart].type=="NILKeyword" , "NT: declaration syntax error in "..track )
+            idtype=chopped[tpestart].word
+            --assert(idtype~="class","NT: Classes have not yet been supported! "..track)
+            if idtypes[idtype] then idtype=idtypes[idtype] end
+            id = chopped[tpestart+1].word
+            assert(id,"NT: Incomplete declaration")
+            assert(chopped[tpestart+1].type=="Unknown","NT: Identifier name ("..chopped[tpestart+1].word..") seems known as a "..chopped[tpestart+1].type.." in "..track)
+            assert(ValidForIdentifier(id),"NT: \""..id.."\" is not a valid identifier in "..track)
+            do
+               assert(
+                  not(
+                    fields[id]
+                  ),"NT: Duplicate field identifier \""..id.."\" in "..track)
+            end
+            if #chopped>tpestart+2 and chopped[tpestart+2].word=="(" then   
+               error("NT: Methods not supported yet!") --[[
+               assert(
+                    chopped[#chopped].word==")" or 
+                    (
+                       prefixed(chopped[#chopped].word,"") and 
+                       chopped[#chopped-1].word==")"
+               ),"NT: Incomplete function declaration")
+               -- print(dbg('chopped',chopped))
+               local fd,fp,fa = buildfunction(id,chopped,tpestart+2,track)
+               functions[wscope][id] = { idtype=idtype, head=fd, params=fp, assertion=fa }
+               -- print(dbg('functions',functions))
+               if not doglobal then ret = ret .. "local " end
+               if doforward then 
+                  ret = ret .. id.." = function() error('NR: Call to a foward function ("..id..") which has not yet been implemented!') end"
+                  forwards[id] = functions[id]
+               else
+                  StartFunctionScope(linenumber,functions[wscope][id],id)
+               end
+               ]]
+            else
+               local blst = { [true]="true", [false]="false"}
+               --print(idtype)
+               assert(idtype~="void","NT: Type 'void' has been reserved for functions only! "..track)
+               assert(not doabstract,"NT: Keyword 'forward' is only valid for functions/methods; "..track)
+               local pdefault,psdefault
+               if #chopped>tpestart+2 and chopped[tpestart+2].word=="=" then
+                  assert( #chopped>=tpestart+3 , "NT: Syntax error")
+                  pdefault=chopped[tpestart+3]
+                  psdefault=nil; if pdefault then psdefault=pdefault.word end
+               end
+               if idtype=="number" then 
+                 default="0"
+                 if pdefault then
+                    assert(tonumber(psdefault),"NT: Constant number expected in "..track)
+                 end
+               elseif idtype=="string" then 
+                  default='""'
+                  if pdefault then
+                    assert(pdefault.type=="string","NT: Constant string expected in "..track)
+                  end  
+               elseif idtype=="table" then 
+                  default="{}" 
+                  if pdefault then
+                     error("NT: Full table definition from variable declaration not yet supported in "..track)
+                  end
+               elseif idtype=="boolean" then
+                  default="false"
+                  if pdefault then
+                     assert(pdefault.word=="true" or pdefault.word=="false","NT: Constant boolean expected in "..track)
+                  end
+               elseif idtype=="var" then
+                  if pdefault then
+                     error("NT: Direct, declare and define is not yet supported for variants in "..track)
+                  end
+               else
+                  error("NT: Type not yet supported in "..track)
+               end
+               ret = ret .. "\t['"..id.."'] = { idtype='".. idtype.."', name='"..id.."', default= "..(psdefault or default)..", static="..blst[dostatic]..", readonly="..blst[doreadonly].."},"
+               fields[id]=true
+               
+            end
+    end
+    
     local function dbg(myvarname,myvar,level)
        local ret = ""
        for i=1,level or 1 do ret = ret .."\t" end
@@ -434,6 +533,20 @@ function mNIL.Translate(script,chunk)
             else
                error("Unexpected directive in "..track)
             end
+         elseif scopes[#scopes].kind=="class" then
+            local scope=scopes[#scopes]
+            vars[scopelevel()] = vars[scopelevel()] or {}
+            functions[scopelevel()] =  functions[scopelevel()] or {}
+            if #chopped == 1 and chopped[1] and chopped[1].word=="end" then
+               ret = ret .. "}"
+               if scope.extends then ret = ret .. ","..scope.extends end
+               ret = ret .. ")\n"
+               vars[#scopes]=nil
+               functions[#scopes]=nil
+               scopes[#scopes]=nil
+            else
+               ClassScope(chopped,track)
+            end   
          elseif chopped[1].type=="NILKeyword" then -- only for declarations!
             local tpestart=1
             local doglobal=false
@@ -453,7 +566,7 @@ function mNIL.Translate(script,chunk)
             until getout end
             assert( chopped[tpestart].type=="NILKeyword" , "NT: declaration syntax error in "..track )
             idtype=chopped[tpestart].word
-            assert(idtype~="class","NT: Classes have not yet been supported! "..track)
+            --assert(idtype~="class","NT: Classes have not yet been supported! "..track)
             if idtypes[idtype] then idtype=idtypes[idtype] end
             id = chopped[tpestart+1].word
             assert(id,"NT: Incomplete declaration")
@@ -640,6 +753,27 @@ function mNIL.Translate(script,chunk)
                          scopes[scopelevel()] = nil
                          ret = ret .. "end"
                       end
+                      if scopes[scopelevel()].kind=="class" then ret = ret .. "," end
+                   elseif v.word=="class" and i==1 and #scopes==0 then
+                       assert(#chopped>=2,"NT: Class requires definition!")
+                       newscope("class",linenumber)
+                       local cscope = scopes[#scopes]
+                       cscope.classname = chopped[2].word
+                       if (#chopped>=3) then
+                          assert(chopped[3].word=="extends","NT: Extends expected")
+                          assert(#chopped==4,"NT: class to extend from expected")
+                          cscope.extends = chopped[4].word
+                       end
+                       if cscope.extends then assert(classes[cscope.extends],"NT: Extend request from non-existent class in "..track) end
+                       assert(not classes[cscope.classname],"NT: Duplicate class")
+                       assert(not vars.globals[cscope.classname],"NT: Variable name used as classname")
+                       assert(not functions.globals[cscope.classname],"NT: Function name used as classname")
+                       assert(not luakeywords[cscope.classname],"NT: Keyword as classname")
+                       assert(not nilkeywords[cscope.classname],"NT: Classname is keyword")
+                       assert(not _G[cscope.classname],"NT: Cannot use globals defined in 'pure lua' as classname")
+                       classes[cscope.classname]=cscope.classname
+                       ret = ret .. cscope.classname .. " = NILClass.DeclareClass('"..cscope.classname.."',{\n"
+                       break
                    elseif v.word=="return" then
                         local retscope = #scopes
                         while(retscope>0) do

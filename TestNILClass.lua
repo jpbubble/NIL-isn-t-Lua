@@ -12,18 +12,20 @@ local NILCode = [[
   class MyClass
   
     int i = 2019
-    string h = "Hello World
+    string h = "Hello World"
+    readonly string nochange="You ain't gonna change me"
+    static int count
     
-    void Hello()
-       print(self.h)
-       print("Written in "..self.i)
-    end
+//    void Hello()
+//       print(self.h)
+//       print("Written in "..self.i)
+//    end
   
   end
   
-  MyClass MC
-  MC = MyClass.New()
-  MC.Hello()
+//  MyClass MC
+//  MC = MyClass.New()
+//  MC.Hello()
     
 ]]
 
