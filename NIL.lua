@@ -530,6 +530,7 @@ function mNIL.Translate(script,chunk)
                 ]]
                 -- For now the order doesn't matter. When NIL can get stricter in variable checks, the order will have to be reversed.
                 vars[#scopes] = vars[#scopes] or {}
+                functions[#scopes] = functions[#scopes] or {}
                 local IsVar = vars.globals[v.word] or functions.globals[v.word]
                 for i=0,scopelevel() do IsVar = IsVar or vars[i][v.word] or functions[i][v.word] end
                 --[[
@@ -548,7 +549,7 @@ function mNIL.Translate(script,chunk)
                    -- print ("KEYWORD "..v.word)
                    if scopestart==v.word then
                       ret = ret .. " "..v.word.." "
-                      scopestart=nil
+                      scopestart=nil                   
                    elseif v.word=="do" then
                       ret = ret .. " do "
                       newscope("do",linenumber)
@@ -605,7 +606,7 @@ function mNIL.Translate(script,chunk)
                        ret = ret .. " in "
                    elseif v.word=="break"  then
                       ret = ret .. " break "
-                   elseif v.word=="or" or v.word=="and" or v.word=="not" then
+                   elseif v.word=="or" or v.word=="and" or v.word=="not" or v.word=="true" or v.word=="false" then
                       ret = ret .. " "..v.word.." "
                    elseif v.word=="end" then
                       assert(scopelevel()>0,"NT: Key word 'end' encountered, without any open scope!  "..track)
@@ -621,6 +622,48 @@ function mNIL.Translate(script,chunk)
                       else
                          scopes[scopelevel()] = nil
                          ret = ret .. "end"
+                      end
+                   elseif v.word=="return" then
+                        local retscope = #scopes
+                        while(retscope>0) do
+                           if scopes[retscope].type=="function" then break end
+                           retscope = retscope - 1
+                        end
+                        if retscope==0 then ret = ret .. "return" else
+                          local scope=scopes[retscope]
+                          local func = scope.func
+                          if (not func) then print(dbg('scope',scope)) end
+                          if func.idtype=="void" then 
+                             ret = ret .. "return;"  -- This will enforce an error if people try to return values through a void, and if not an error, the value will be ignored, either way, this blocks voids from returning values! :P
+                          elseif func.idtype=="var" then
+                             ret = ret .. "return " -- anything goes with 'var', yes even multiple returns.
+                          elseif func.idtype=="int" then
+                            if i==#chopped then
+                                ret = ret .. "return 0"
+                             else
+                                ret = ret .. "return " -- stricter checkups CAN come later
+                             end   
+                          elseif func.idtype=="string" then
+                             if i==#chopped then
+                                ret = ret .. "return ''"
+                             else
+                                ret = ret .. "return " -- stricter checkups CAN come later
+                             end
+                          elseif func.idtype=="table" then
+                             if i==#chopped then
+                                ret = ret .. "return nil"
+                             else
+                                ret = ret .. "return " -- stricter checkups CAN come later
+                             end
+                          elseif func.idtype=="boolean" then
+                             if i==#chopped then
+                                ret = ret .. "return false"
+                             else
+                                ret = ret .. "return " -- stricter checkups CAN come later
+                             end
+                          else
+                                 error("Current setup cannot return in this kind of function yet! -- "..track)
+                          end
                       end
                    else 
                       error("NT: Keyword '"..v.word.."' not expected in this situation in "..track)   

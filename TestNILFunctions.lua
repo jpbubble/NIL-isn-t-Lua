@@ -27,16 +27,16 @@ local NILCode = [[
         print(a)
     end
     
-    //int sum(int a, int b)
-    //    return a+b
-    //end
+    int sum(int a, int b)
+        return a+b
+    end
     
     
     Hello()
     Hi("Jeroen")
     Yo("Yo")
     int a
-    //a = sum(4,5)
+    a = sum(4,5)
     print(a)
     
 ]]
