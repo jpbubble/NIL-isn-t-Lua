@@ -20,6 +20,7 @@ local NILCode = [[
     
     void Hi(a)
         print("Hello "..(a or "The nameless one"))
+        return
     end
     
     void Yo(string a)
@@ -31,6 +32,10 @@ local NILCode = [[
         return a+b
     end
     
+    int varsum(a,b)
+        return a+b
+    end
+    
     
     Hello()
     Hi("Jeroen")
@@ -39,6 +44,7 @@ local NILCode = [[
     a = sum(4,5)
     print(a)
     
+    
 ]]
 
 
@@ -46,3 +52,7 @@ local NIL=require "NIL"
 local NILTrans = NIL.Translate(NILCode,"NILCode")
 
 print("Original:\n"..NILCode,"\n\nTranslation:\n"..NILTrans)
+
+print("Executing transation!")
+local l = loadstring(NILTrans,"Translation")
+l()

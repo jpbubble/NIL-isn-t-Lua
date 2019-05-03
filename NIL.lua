@@ -279,7 +279,7 @@ function mNIL.Translate(script,chunk)
              if wantass~="" then wantass=wantass..", " end wantass=wantass..wa 
              if not a then return end
              if assertion then
-                assertion = " and "..a
+                assertion = assertion.." and "..a
              else
                 assertion = a
              end
@@ -345,7 +345,7 @@ function mNIL.Translate(script,chunk)
               if tcontains(nilkeywords,p) or tcontains(luakeywords,p) then error("NT: Unexpected keyword '"..p.."' in "..track) end
               if tcontains(operators,p) then error("NT: Unexpected operator '"..p.."' in "..track) end
               assert(ValidForIdentifier(p),"NT: Invalid identifier name '"..p.."' in "..track) 
-              if i>1 then ret = ret ..", end " end
+              if i>1 then ret = ret ..", " end
               ret = ret .. p
           end
           ret = ret ..")"
@@ -626,18 +626,20 @@ function mNIL.Translate(script,chunk)
                    elseif v.word=="return" then
                         local retscope = #scopes
                         while(retscope>0) do
-                           if scopes[retscope].type=="function" then break end
+                           if scopes[retscope].kind=="function" then break end
+                           -- print(dbg(sprintf("Scope #%d",retscope),scopes[retscope]))
                            retscope = retscope - 1
                         end
                         if retscope==0 then ret = ret .. "return" else
                           local scope=scopes[retscope]
                           local func = scope.func
                           if (not func) then print(dbg('scope',scope)) end
+                          -- print(dbg("Translating return",func))
                           if func.idtype=="void" then 
                              ret = ret .. "return;"  -- This will enforce an error if people try to return values through a void, and if not an error, the value will be ignored, either way, this blocks voids from returning values! :P
                           elseif func.idtype=="var" then
                              ret = ret .. "return " -- anything goes with 'var', yes even multiple returns.
-                          elseif func.idtype=="int" then
+                          elseif func.idtype=="number" then
                             if i==#chopped then
                                 ret = ret .. "return 0"
                              else
