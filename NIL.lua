@@ -284,7 +284,7 @@ end
 -- Stuff that NIL will need to make classes possible.
 NILClass = {}
 
-local function NewFromClass(classname,class, consparam)
+local function NewFromClass(classname,class, consparam,callconstructor)
     assert(class,"NR,NH: Class hack!")
     assert(class.classname==classname,"NR,NH: Class naming hack!")
     local locked = false
@@ -377,8 +377,8 @@ local function NewFromClass(classname,class, consparam)
     end
     
     setmetatable(faketable,metatable)
-    if (trueclass.methods.CONSTRUCTOR) then
-       trueclass.methods.CONSTRUCTOR(faketable,consparam)
+    if (callconstructor and trueclass.fields.CONSTRUCTOR) then
+       trueclass.fields.CONSTRUCTOR.declaredata.func(faketable,consparam)
     end
     locked=true
     return faketable
@@ -421,20 +421,27 @@ function NILClass.DeclareClass(name,identifiers,extends)
         end
     end
     
+    local forstatic
     local ret = {}
     local meta = {
         __index = function(t,k)
-                    if k=="NEW" then 
-                       return function(consparam) return NewFromClass(name,class,consparam) end
+                    if k=="NEW" or k=="NEWNOCONSTRUCTOR" then 
+                       return function(consparam) return NewFromClass(name,class,consparam,k=='NEW') end
                     else
-                       error("CALLING KEY "..k.." NOT SUPPORTED YET!")
+                       assert(statics[k],"NR: Non-static or non-existent field called from static call")
+                       return forstatic[k]
                     end
                   end,
         __newindex = function(t,k,v)
-                       error("DEFINING KEY "..k.." NOT SUPPORTED YET!")
+                     if k=="NEW" or k=="NEWNOCONSTRUCTOR" then 
+                       error("NT: You cannot redefine "..k)
                      end
+                       assert(statics[k],"NR: Non-static or non-existent field called from static call")
+                       forstatic[k]=v
+                  end
     }
     setmetatable(ret,meta)
+    forstatic = ret.NEWNOCONSTRUCTOR()
     return ret
 end
 

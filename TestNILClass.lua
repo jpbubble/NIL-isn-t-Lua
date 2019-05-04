@@ -51,6 +51,9 @@ local NILCode = [[
     
     print(MC.ro)
     // MC.ro=20 // should cause an error!
+    print(MyClass.count)
+    MyClass.count = MyClass.count * 2    
+    print(MyClass.count)
     
     
 ]]
