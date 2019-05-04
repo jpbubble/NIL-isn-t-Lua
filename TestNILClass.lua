@@ -14,7 +14,7 @@ local NILCode = [[
     int i = 2019
     string h = "Hello World"
     readonly string nochange="You ain't gonna change me"
-    static int count
+    static int count = 40
     table testtable
     
 //    void Hello()
@@ -25,7 +25,14 @@ local NILCode = [[
   end
     
     MyClass MC
+    MyClass MC2
     MC = MyClass.NEW()
+    MC.h = "Hello Earth"
+    MC.count = MC.count + 1
+    MC2 = MyClass.NEW()
+    MC2.i = MC2.i * 2
+    print(MC.count,MC.h,MC.i)
+    print(MC2.count,MC2.h,MC2.i)
 //  MC.Hello()
     
 ]]

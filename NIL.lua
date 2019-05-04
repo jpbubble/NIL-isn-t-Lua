@@ -12,7 +12,7 @@ local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and",
-                     "switch","case","default","forever","module","class","static","get","set","readonly"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
+                     "self","switch","case","default","forever","module","class","static","get","set","readonly"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
@@ -34,6 +34,32 @@ local print=print
 local replace = string.gsub
 local ASC=string.byte
 local sprintf = string.format
+
+
+local function dbg(myvarname,myvar,level)
+       local ret = ""
+       for i=1,level or 1 do ret = ret .."\t" end
+       ret = ret .. sprintf("%s %s: ",type(myvar),myvarname)
+       -- I really NEED a case routine!
+       if type(myvar)=="nil" then
+          ret = ret .. "nil\n"
+       elseif type(myvar) == "userdata" or type(myvar) == "function" then
+          ret = ret .. "~\n"
+       elseif type(myvar) == "string" or type(myvar)=="number" then
+          ret = ret .. myvar .. "\n"
+       elseif type(myvar) == "table" then
+          ret = ret .. "\n"
+          for k,v in pairs(myvar) do
+              ret = ret .. dbg(k,v,(level or 1)+1)
+          end
+       elseif type(myvar) == "boolean" then
+          if myvar then ret = ret .. "true\n" else ret = ret .. "false\n" end
+       else
+          ret = ret .. "WTF???\n" -- This should never be possible to happen!
+       end
+       return ret
+end
+
 
 local function split(inputstr, sep)
         if sep == nil then
@@ -271,17 +297,26 @@ local function NewFromClass(classname,class, consparam)
     trueclass.statics = class.statics
     trueclass.methods = class.methods
     for k,v in pairs(class.fields) do
-        
         local wh = trueclass.fields
+        
         trueclass.where[k]="fields"
-        if v.static then wh=trueclass.statics trueclass.where[k]="statics" end
+        if v.static then 
+           --print("GOT STATIC")
+           wh=trueclass.statics 
+           trueclass.where[k]="statics" 
+        end
         assert(not v.abstract,"NR,NH: Abstract fields are not allowed at all, and especially not in a new defintion!")
-        assert(v.name==k,"NR,NH: Field naming mismatch!")
-        wh[v.name] = {}
-        wh[v.name].declaredata = v
-        wh[v.name].value = v.default
-        if v.idtype=="table" then wh[v.name].value={} end
-        wh[v.name].idtype=v.idtype
+        --if (v.name~=k) then print("Mismatch >> ",v.name,k) end
+        --assert(v.name==k,"NR,NH: Field naming mismatch!")
+        print("\027[32m"..dbg('trueclass',trueclass).."\027[0m")        
+        v.name=k
+        if (not wh[v.name]) then
+          wh[v.name] = {}
+          wh[v.name].declaredata = v
+          wh[v.name].value = v.default
+          if v.idtype=="table" then wh[v.name].value={} end
+          wh[v.name].idtype=v.idtype
+        end
     end
     
     function metatable.__index(tab,key)
@@ -301,8 +336,10 @@ local function NewFromClass(classname,class, consparam)
     function metatable.__newindex(tab,key,value)
        assert(type(key)=="string","NR: Invalid field")
        local where = trueclass.where[key]
+       --print(dbg("trueclass",trueclass))
        assert(where,"NR: Class has neither field nor method called "..key)
        assert(where=="fields" or where=="statics","NR: You can only redefine field variables, and "..key.." belongs to the "..where)
+       --print("\027[36m\027[40m"..dbg('trueclass',trueclass).."\027[0m")
        local field = trueclass[where][key]
        assert(not (field.declaredata.readonly and locked),"NR: Tried to reassign a read-only field")
        local idtype=field.declaredata.idtype
@@ -311,7 +348,8 @@ local function NewFromClass(classname,class, consparam)
           elseif value==nil then value="nil" 
           elseif value==true then value='true'
           elseif value==false then value='false' end
-       end   
+       end
+       assert(idtype,"NI: idtype==nil "..key)
        assert(
           (idtype=="var") or
           (idtype=="string" and type(value)=="string") or
@@ -319,9 +357,9 @@ local function NewFromClass(classname,class, consparam)
           (idtype=="table" and (type(value)=="table" or value==nil)) or
           (idtype=="userdata" and (type(value)=="userdata" or value==nil)) or
           (idtype=="function" and (type(value)=="function" or value==nil)) or
-          (classes[idtype] and NILClass.BelongsToClass(value,idtype)),"NR: Value of tyoe "..idtype.." expected for "..key.." in class "..classname
+          (classes[idtype] and NILClass.BelongsToClass(value,idtype)),"NR: Value of type "..idtype.." expected for "..key.." in class "..classname
        )
-       class[where][key]=v
+       trueclass[where][key].value=value
     end
     
     setmetatable(faketable,metatable)
@@ -345,10 +383,26 @@ function NILClass.DeclareClass(name,identifiers,extends)
        for k,v in pairs(class.parent) do
            fields[k] = {}
            local cf=fields[k]
+           cf.fromparent=true
            for fk,fv in pairs(class.parent.fields) do
-               if (fk=="default" and class.parent.fields.idtype=="table") then cf.default = NILClass.Emptytable() else cf[fk]=fv end               
+               if (fk=="default" and class.parent.fields.idtype=="table") then cf.default = NILClass.Emptytable() else cf[fk]=fv end
            end
        end
+    end
+    
+    for k,v in pairs(identifiers) do
+        local old = fields[k]
+        if old then -- Check if overriding old stuff is allowed!
+           assert(old.fromparent,"NT: Duplicate field/method: "..k)
+           assert(not old.final,"NT: Final elements cannot be overridden: "..k)
+        end
+        fields[k] = {}
+        local cf=fields[k]
+        cf.fromparent=false
+        cf.name=k
+        for fk,fv in pairs(identifiers[k]) do
+            if (fk=="default" and identifiers=="table") then cf.default = NILClass.Emptytable() else cf[fk]=fv end
+        end
     end
     
     local ret = {}
@@ -592,27 +646,6 @@ function mNIL.Translate(script,chunk)
             end
     end
     
-    local function dbg(myvarname,myvar,level)
-       local ret = ""
-       for i=1,level or 1 do ret = ret .."\t" end
-       ret = ret .. sprintf("%s %s: ",type(myvar),myvarname)
-       -- I really NEED a case routine!
-       if type(myvar)=="nil" then
-          ret = ret .. "nil\n"
-       elseif type(myvar) == "userdata" or type(myvar) == "function" then
-          ret = ret .. "~\n"
-       elseif type(myvar) == "string" or type(myvar)=="number" then
-          ret = ret .. myvar .. "\n"
-       elseif type(myvar) == "table" then
-          ret = ret .. "\n"
-          for k,v in pairs(myvar) do
-              ret = ret .. dbg(k,v,(level or 1)+1)
-          end
-       else
-          ret = ret .. "WTF???\n" -- This should never be possible to happen!
-       end
-       return ret
-    end
     vars.globals = vars.globals or {}
     functions.globals = functions.globals or {}
     for linenumber,getrawline in itpairs(lines) do
