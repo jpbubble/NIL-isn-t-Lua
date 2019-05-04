@@ -46,6 +46,10 @@ local NILCode = [[
        return cu*2
     end
     
+    int getme()
+       return 1
+    end
+    
     void CONSTRUCTOR(a,string b)
          print("Creating a class: ",a)
          self.bycons = b
@@ -75,6 +79,7 @@ local NILCode = [[
     print(MyClass.count)
     
     print(MC.bycons,MC2.bycons)
+    print("getme:",MC.getme())
 ]]
 
 

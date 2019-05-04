@@ -335,7 +335,8 @@ local function NewFromClass(classname,class, callconstructor, ...)
     
     local function getmethod(func,...)
        return function(...)
-           func(faketable,...)
+           local ret = func(faketable,...)
+           return ret
        end
     end
     
