@@ -266,6 +266,8 @@ function NILClass.NewFromClass(classname,consparam)
 
 end
 
+function NILClass.Emptytable() return {} end -- Seems useless, but trust me.... it's not!
+
 
 -- Translator itself
 function mNIL.Translate(script,chunk)
@@ -454,7 +456,7 @@ function mNIL.Translate(script,chunk)
                     assert(pdefault.type=="string","NT: Constant string expected in "..track)
                   end  
                elseif idtype=="table" then 
-                  default="{}" 
+                  default="NILClass.Emptytable()" -- If I didn't do it this way, all tables in all variables of this class would get the same pointer, getting one big mess! 
                   if pdefault then
                      error("NT: Full table definition from variable declaration not yet supported in "..track)
                   end

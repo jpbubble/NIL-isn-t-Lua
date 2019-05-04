@@ -15,6 +15,7 @@ local NILCode = [[
     string h = "Hello World"
     readonly string nochange="You ain't gonna change me"
     static int count
+    table testtable
     
 //    void Hello()
 //       print(self.h)
