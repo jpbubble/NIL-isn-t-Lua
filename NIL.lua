@@ -284,7 +284,7 @@ end
 -- Stuff that NIL will need to make classes possible.
 NILClass = {}
 
-local function NewFromClass(classname,class, consparam,callconstructor)
+local function NewFromClass(classname,class, callconstructor, ...)
     assert(class,"NR,NH: Class hack!")
     assert(class.classname==classname,"NR,NH: Class naming hack!")
     local locked = false
@@ -378,7 +378,8 @@ local function NewFromClass(classname,class, consparam,callconstructor)
     
     setmetatable(faketable,metatable)
     if (callconstructor and trueclass.fields.CONSTRUCTOR) then
-       trueclass.fields.CONSTRUCTOR.declaredata.func(faketable,consparam)
+       assert(trueclass.fields.CONSTRUCTOR.declaredata.func and trueclass.fields.CONSTRUCTOR.declaredata.idtype=="void" and (not trueclass.statics.CONSTRUCTOR),"NR: Constructors may only exist as non-static 'void' functions!")
+       trueclass.fields.CONSTRUCTOR.declaredata.func(faketable,...)
     end
     locked=true
     return faketable
@@ -426,7 +427,7 @@ function NILClass.DeclareClass(name,identifiers,extends)
     local meta = {
         __index = function(t,k)
                     if k=="NEW" or k=="NEWNOCONSTRUCTOR" then 
-                       return function(consparam) return NewFromClass(name,class,consparam,k=='NEW') end
+                       return function(...) return NewFromClass(name,class,k=='NEW',...) end
                     else
                        assert(statics[k],"NR: Non-static or non-existent field called from static call")
                        return forstatic[k]

@@ -17,6 +17,7 @@ local NILCode = [[
     static int count = 40
     table testtable
     readonly int ro = 20
+    readonly string bycons
     
     void Hello()
        print(self.h)
@@ -31,15 +32,20 @@ local NILCode = [[
        print("self = ",self)
        return cu*2
     end
+    
+    void CONSTRUCTOR(a,string b)
+         print("Creating a class: ",a)
+         self.bycons = b
+    end
   
   end
     
     MyClass MC
     MyClass MC2
-    MC = MyClass.NEW()
+    MC = MyClass.NEW(1,"abc")
     MC.h = "Hello Earth"
     MC.count = MC.count + 1
-    MC2 = MyClass.NEW()
+    MC2 = MyClass.NEW(2,"def")
     MC2.i = MC2.i * 2
     print(MC.count,MC.h,MC.i)
     print(MC2.count,MC2.h,MC2.i)
@@ -55,7 +61,7 @@ local NILCode = [[
     MyClass.count = MyClass.count * 2    
     print(MyClass.count)
     
-    
+    print(MC.bycons,MC2.bycons)
 ]]
 
 
