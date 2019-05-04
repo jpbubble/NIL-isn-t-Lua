@@ -17,10 +17,19 @@ local NILCode = [[
     static int count = 40
     table testtable
     
-//    void Hello()
-//       print(self.h)
-//       print("Written in "..self.i)
-//    end
+    void Hello()
+       print(self.h)
+       print("Just an integer num "..self.i)
+    end
+    
+    void inc_i(int bi)
+       self.i = self.i + bi
+    end
+    
+    static int stic(int cu)
+       print("self = ",self)
+       return cu*2
+    end
   
   end
     
@@ -33,7 +42,12 @@ local NILCode = [[
     MC2.i = MC2.i * 2
     print(MC.count,MC.h,MC.i)
     print(MC2.count,MC2.h,MC2.i)
-//  MC.Hello()
+    MC.Hello()
+    print("\n\n\nA few tests in methods")
+    MC.inc_i(10)
+    print(MC.i)
+    print( MC.stic(50) )
+    
     
 ]]
 

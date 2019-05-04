@@ -144,7 +144,7 @@ local function ValidForIdentifier(str)
        local c=mid(str:upper(),i,1)
        local b=ASC(c)
        if (i==1 and b>=48 and b<=57) then return false end -- Identifiers may NOT begin with a number!
-       ret = ret and (b=="_" or (b>=65 and b<=90) or (b>=48 and b<=57))
+       ret = ret and (c=="_" or (b>=65 and b<=90) or (b>=48 and b<=57))
    end
    return ret
 end
@@ -308,7 +308,7 @@ local function NewFromClass(classname,class, consparam)
         assert(not v.abstract,"NR,NH: Abstract fields are not allowed at all, and especially not in a new defintion!")
         --if (v.name~=k) then print("Mismatch >> ",v.name,k) end
         --assert(v.name==k,"NR,NH: Field naming mismatch!")
-        print("\027[32m"..dbg('trueclass',trueclass).."\027[0m")        
+        --print("\027[32m"..dbg('trueclass',trueclass).."\027[0m")        
         v.name=k
         if (not wh[v.name]) then
           wh[v.name] = {}
@@ -317,6 +317,12 @@ local function NewFromClass(classname,class, consparam)
           if v.idtype=="table" then wh[v.name].value={} end
           wh[v.name].idtype=v.idtype
         end
+    end
+    
+    local function getmethod(func,...)
+       return function(...)
+           func(faketable,...)
+       end
     end
     
     function metatable.__index(tab,key)
@@ -330,7 +336,15 @@ local function NewFromClass(classname,class, consparam)
        assert(where,"NR: Class has neither field nor method called "..key)
        local ret = trueclass[where][key]
        assert(ret,"NR,NI/NH: Field or method could not be properly retrieved: "..class.classname.."."..key)
-       return ret.value
+       if (ret.declaredata.ikben=="method") then
+          if (where=='fields') then
+             return getmethod(ret.declaredata.func)
+          else
+             return ret.declaredata.func
+          end
+       else
+          return ret.value
+       end
     end
     
     function metatable.__newindex(tab,key,value)
@@ -372,6 +386,7 @@ end
 
 
 function NILClass.DeclareClass(name,identifiers,extends)
+    local reservednames = {"NEW"}
     local class = classes[name]; assert(class,"NR,NH: Class name misinformation! Has the translation been altered with?")    
     local statics = {}; class.statics = statics
     local fields = {}; class.fields = fields
@@ -385,12 +400,13 @@ function NILClass.DeclareClass(name,identifiers,extends)
            local cf=fields[k]
            cf.fromparent=true
            for fk,fv in pairs(class.parent.fields) do
-               if (fk=="default" and class.parent.fields.idtype=="table") then cf.default = NILClass.Emptytable() else cf[fk]=fv end
+               if (fk=="default" and class.parent.fields.idtype=="table") then cf.default = 'new table' else cf[fk]=fv end
            end
        end
     end
     
     for k,v in pairs(identifiers) do
+        for _,na in ipairs(reservednames) do assert(k~=na,"NT: Cannot use '"..k.."' as element for a class, as the name has been reserved.") end
         local old = fields[k]
         if old then -- Check if overriding old stuff is allowed!
            assert(old.fromparent,"NT: Duplicate field/method: "..k)
@@ -450,7 +466,7 @@ function mNIL.Translate(script,chunk)
     local allowrepeatend
     local forwards = {}
     local function newscope(kind,ln) scopes[#scopes+1] = { kind=kind, line=ln } end
-    local function buildfunction(id,chopped,tpestart,track)        
+    local function buildfunction(id,chopped,tpestart,track,needself)        
           -- error(chopped[tpestart].word) --check
           assert(chopped[tpestart].word=="(","NI: Function builder has been pointed wrong! "..track)
           local params = {}
@@ -466,6 +482,7 @@ function mNIL.Translate(script,chunk)
                 assertion = a
              end
           end
+          if needself then params[1]="self" end -- for non-static methods.
           assert(chopped[i],"NT: Unfinished function definition in "..track)
           while (chopped[i].word~=")") do
              while (chopped[i] and chopped[i].word=="") do i=i+1 end
@@ -524,7 +541,7 @@ function mNIL.Translate(script,chunk)
           end          
           local ret = "("
           for i,p in ipairs(params) do
-              if tcontains(nilkeywords,p) or tcontains(luakeywords,p) then error("NT: Unexpected keyword '"..p.."' in "..track) end
+              if p~="self" or i>1 then if tcontains(nilkeywords,p) or tcontains(luakeywords,p) then error("NT: Unexpected keyword '"..p.."' in "..track) end end
               if tcontains(operators,p) then error("NT: Unexpected operator '"..p.."' in "..track) end
               assert(ValidForIdentifier(p),"NT: Invalid identifier name '"..p.."' in "..track) 
               if i>1 then ret = ret ..", " end
@@ -547,7 +564,7 @@ function mNIL.Translate(script,chunk)
           end
     end
     
-    local function ClassScope(chopped,track)
+    local function ClassScope(chopped,track,linenumber)
             local tpestart=1
             local dostatic=false
             local doabstract=false
@@ -557,6 +574,7 @@ function mNIL.Translate(script,chunk)
             local default = "nil"
             local wscope = #scopes
             local fields = {}
+            local blst = { [true]="true", [false]="false"}
             if prefixed(chopped[1].word,"//") then ret = ret .. "-- comment line!" return end
             do local getout repeat
                getout=true
@@ -583,7 +601,7 @@ function mNIL.Translate(script,chunk)
                   ),"NT: Duplicate field identifier \""..id.."\" in "..track)
             end
             if #chopped>tpestart+2 and chopped[tpestart+2].word=="(" then   
-               error("NT: Methods not supported yet!") --[[
+               --error("NT: Methods not supported yet!") --[[
                assert(
                     chopped[#chopped].word==")" or 
                     (
@@ -591,19 +609,20 @@ function mNIL.Translate(script,chunk)
                        chopped[#chopped-1].word==")"
                ),"NT: Incomplete function declaration")
                -- print(dbg('chopped',chopped))
-               local fd,fp,fa = buildfunction(id,chopped,tpestart+2,track)
+               local fd,fp,fa = buildfunction(id,chopped,tpestart+2,track,not dostatic)
                functions[wscope][id] = { idtype=idtype, head=fd, params=fp, assertion=fa }
                -- print(dbg('functions',functions))
-               if not doglobal then ret = ret .. "local " end
-               if doforward then 
-                  ret = ret .. id.." = function() error('NR: Call to a foward function ("..id..") which has not yet been implemented!') end"
-                  forwards[id] = functions[id]
+               assert(not doreadonly,"The keyword 'readonly' is not valid for methods")
+               ret = ret .. "\t['"..id.."'] = { ikben='method', idtype='"..idtype.."', name='"..id.."', static="..blst[dostatic]..", "
+               if doabstract then
+                  ret = ret .. "abstract = true, "
                else
-                  StartFunctionScope(linenumber,functions[wscope][id],id)
+                  ret = ret .. "func = "
+                  StartFunctionScope(linenumber,functions[wscope][id])
                end
-               ]]
+               --]]
             else
-               local blst = { [true]="true", [false]="false"}
+
                --print(idtype)
                assert(idtype~="void","NT: Type 'void' has been reserved for functions only! "..track)
                assert(not doabstract,"NT: Keyword 'forward' is only valid for functions/methods; "..track)
@@ -909,7 +928,7 @@ function mNIL.Translate(script,chunk)
                        ret = ret .. " in "
                    elseif v.word=="break"  then
                       ret = ret .. " break "
-                   elseif v.word=="or" or v.word=="and" or v.word=="not" or v.word=="true" or v.word=="false" then
+                   elseif v.word=="or" or v.word=="and" or v.word=="not" or v.word=="true" or v.word=="false" or v.word=="self" then
                       ret = ret .. " "..v.word.." "
                    elseif v.word=="end" then
                       assert(scopelevel()>0,"NT: Key word 'end' encountered, without any open scope!  "..track)
@@ -926,7 +945,7 @@ function mNIL.Translate(script,chunk)
                          scopes[scopelevel()] = nil
                          ret = ret .. "end"
                       end
-                      if scopes[scopelevel()].kind=="class" then ret = ret .. "," end
+                      if scopes[scopelevel()].kind=="class" then ret = ret .. "}," end
                    elseif v.word=="class" and i==1 and #scopes==0 then
                        assert(#chopped>=2,"NT: Class requires definition!")
                        newscope("class",linenumber)
