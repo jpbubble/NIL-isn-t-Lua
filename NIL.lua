@@ -14,7 +14,7 @@ local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and",
                      "switch","case","default","forever","module","class","static","get","set","readonly"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
-local operators   = {":","==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
+local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
 local mNIL = {}
 
@@ -207,7 +207,7 @@ local function chop(amystring,pure,atrack)
          end
          gword=gword..c
          wt="op"
-      elseif c=="_" or (b>=65 and b<=90) or (b>=48 and b<=57) or (b>=97 and b<=122) or (c==".") then
+      elseif c=="_" or (b>=65 and b<=90) or (b>=48 and b<=57) or (b>=97 and b<=122) or (c==".") or (c==":") then
         if wt=="op" then
            chopped[#chopped+1]=gword
            gword="" 
@@ -258,16 +258,130 @@ end
 -- Stuff that NIL will need to make classes possible.
 NILClass = {}
 
-function NILClass.DeclareClass(name,identifiers,extend)
-   
+local function NewFromClass(classname,class, consparam)
+    assert(class,"NR,NH: Class hack!")
+    assert(class.classname==classname,"NR,NH: Class naming hack!")
+    local locked = false
+    local trueclass = {}
+    local faketable = {} -- Only used to link the meta table to...
+    local metatable = {}
+    
+    trueclass.fields = {}
+    trueclass.where = {}
+    trueclass.statics = class.statics
+    trueclass.methods = class.methods
+    for k,v in pairs(class.fields) do
+        
+        local wh = trueclass.fields
+        trueclass.where[k]="fields"
+        if v.static then wh=trueclass.statics trueclass.where[k]="statics" end
+        assert(not v.abstract,"NR,NH: Abstract fields are not allowed at all, and especially not in a new defintion!")
+        assert(v.name==k,"NR,NH: Field naming mismatch!")
+        wh[v.name] = {}
+        wh[v.name].declaredata = v
+        wh[v.name].value = v.default
+        if v.idtype=="table" then wh[v.name].value={} end
+        wh[v.name].idtype=v.idtype
+    end
+    
+    function metatable.__index(tab,key)
+       assert(type(key)=="string","NR: Invalid field")
+       if prefixed(key,".") then
+          if key==".classname" then return class.classname end
+          if key==".parent" then return class.parent end
+          error("Invalid metakey")
+       end
+       local where = trueclass.where[key]
+       assert(where,"NR: Class has neither field nor method called "..key)
+       local ret = trueclass[where][key]
+       assert(ret,"NR,NI/NH: Field or method could not be properly retrieved: "..class.classname.."."..key)
+       return ret.value
+    end
+    
+    function metatable.__newindex(tab,key,value)
+       assert(type(key)=="string","NR: Invalid field")
+       local where = trueclass.where[key]
+       assert(where,"NR: Class has neither field nor method called "..key)
+       assert(where=="fields" or where=="statics","NR: You can only redefine field variables, and "..key.." belongs to the "..where)
+       local field = trueclass[where][key]
+       assert(not (field.declaredata.readonly and locked),"NR: Tried to reassign a read-only field")
+       local idtype=field.declaredata.idtype
+       if idtype=='string' then
+          if type(value)=="number" then value=""..value 
+          elseif value==nil then value="nil" 
+          elseif value==true then value='true'
+          elseif value==false then value='false' end
+       end   
+       assert(
+          (idtype=="var") or
+          (idtype=="string" and type(value)=="string") or
+          (idtype=="number" and type(value)=="number") or
+          (idtype=="table" and (type(value)=="table" or value==nil)) or
+          (idtype=="userdata" and (type(value)=="userdata" or value==nil)) or
+          (idtype=="function" and (type(value)=="function" or value==nil)) or
+          (classes[idtype] and NILClass.BelongsToClass(value,idtype)),"NR: Value of tyoe "..idtype.." expected for "..key.." in class "..classname
+       )
+       class[where][key]=v
+    end
+    
+    setmetatable(faketable,metatable)
+    if (trueclass.methods.CONSTRUCTOR) then
+       trueclass.methods.CONSTRUCTOR(faketable,consparam)
+    end
+    locked=true
+    return faketable
 end
 
-function NILClass.NewFromClass(classname,consparam)
 
+function NILClass.DeclareClass(name,identifiers,extends)
+    local class = classes[name]; assert(class,"NR,NH: Class name misinformation! Has the translation been altered with?")    
+    local statics = {}; class.statics = statics
+    local fields = {}; class.fields = fields
+    local methods = {}; class.methods = methods
+    class.classname = name
+    if extends then
+       class.parentname = extends
+       class.parent = class[extends]
+       for k,v in pairs(class.parent) do
+           fields[k] = {}
+           local cf=fields[k]
+           for fk,fv in pairs(class.parent.fields) do
+               if (fk=="default" and class.parent.fields.idtype=="table") then cf.default = NILClass.Emptytable() else cf[fk]=fv end               
+           end
+       end
+    end
+    
+    local ret = {}
+    local meta = {
+        __index = function(t,k)
+                    if k=="NEW" then 
+                       return function(consparam) return NewFromClass(name,class,consparam) end
+                    else
+                       error("CALLING KEY "..k.." NOT SUPPORTED YET!")
+                    end
+                  end,
+        __newindex = function(t,k,v)
+                       error("DEFINING KEY "..k.." NOT SUPPORTED YET!")
+                     end
+    }
+    setmetatable(ret,meta)
+    return ret
 end
 
-function NILClass.Emptytable() return {} end -- Seems useless, but trust me.... it's not!
 
+
+
+function NILClass.BelongsToClass(v,c) -- Will also check parent variables *if* they exist!
+   if v==nil then return true end -- Seems odd, but all classes can contain 'nil' so I must keep the possibility in mind
+   if type(v)~='table' then return false end
+   local checkclass=v
+   while checkclass do
+         if not checkclass[".classname"] then return false end
+         if checkclass[".classname"] == c then return true end
+         checkclass = checkclass[".parent"]
+   end
+   return false
+end
 
 -- Translator itself
 function mNIL.Translate(script,chunk)
@@ -456,7 +570,7 @@ function mNIL.Translate(script,chunk)
                     assert(pdefault.type=="string","NT: Constant string expected in "..track)
                   end  
                elseif idtype=="table" then 
-                  default="NILClass.Emptytable()" -- If I didn't do it this way, all tables in all variables of this class would get the same pointer, getting one big mess! 
+                  default="'createonthespot'" -- If I didn't do it this way, all tables in all variables of this class would get the same pointer, getting one big mess! 
                   if pdefault then
                      error("NT: Full table definition from variable declaration not yet supported in "..track)
                   end
@@ -472,7 +586,7 @@ function mNIL.Translate(script,chunk)
                else
                   error("NT: Type not yet supported in "..track)
                end
-               ret = ret .. "\t['"..id.."'] = { idtype='".. idtype.."', name='"..id.."', default= "..(psdefault or default)..", static="..blst[dostatic]..", readonly="..blst[doreadonly].."},"
+               ret = ret .. "\t['"..id.."'] = { ikben='field', idtype='".. idtype.."', name='"..id.."', default= "..(psdefault or default)..", static="..blst[dostatic]..", readonly="..blst[doreadonly].."},"
                fields[id]=true
                
             end
@@ -549,7 +663,7 @@ function mNIL.Translate(script,chunk)
             else
                ClassScope(chopped,track)
             end   
-         elseif chopped[1].type=="NILKeyword" then -- only for declarations!
+         elseif chopped[1].type=="NILKeyword" or classes[chopped[1].word] then -- only for declarations!
             local tpestart=1
             local doglobal=false
             local doforward=false
@@ -566,7 +680,7 @@ function mNIL.Translate(script,chunk)
                   wscope='globals'
                end
             until getout end
-            assert( chopped[tpestart].type=="NILKeyword" , "NT: declaration syntax error in "..track )
+            assert( chopped[tpestart].type=="NILKeyword" or classes[chopped[1].word], "NT: declaration syntax error in "..track )
             idtype=chopped[tpestart].word
             --assert(idtype~="class","NT: Classes have not yet been supported! "..track)
             if idtypes[idtype] then idtype=idtypes[idtype] end
@@ -639,7 +753,8 @@ function mNIL.Translate(script,chunk)
                      error("NT: Direct, declare and define is not yet supported for variants in "..track)
                   end
                else
-                  error("NT: Type not yet supported in "..track)
+                  assert(classes[idtype],"NT: No type nor class known as "..idtype.." in "..track)
+                  default = "nil"
                end
                if not doglobal then 
                 vars[scopelevel()][id] = {idtype=idtype}
@@ -661,10 +776,33 @@ function mNIL.Translate(script,chunk)
                 end
                 ]]
                 -- For now the order doesn't matter. When NIL can get stricter in variable checks, the order will have to be reversed.
+                
+                local vword = ""
+                for i=1,#v.word do
+                    local vc = mid(v.word,i,1)
+                    if vc=="." or vc==":" then 
+                       if vword~="" then
+                          local vclass
+                          for si=#scopes,0,-1 do
+                              local sid = si; if sid==0 then sid='globals' end
+                              local fvar = vars[sid][vword] -- found var
+                              if fvar and classes[fvar.idtype] then
+                                 if classes[fvar.idtype].methods[vword] then
+                                    v.word = vword..":"..right(v.word,#v.word-(#vword+1))
+                                 else
+                                    v.word = vword.."."..right(v.word,#v.word-(#vword+1))
+                                 end
+                              end
+                           end
+                       end
+                       break;
+                    end
+                    vword = vword .. vc
+                end
                 vars[#scopes] = vars[#scopes] or {}
                 functions[#scopes] = functions[#scopes] or {}
-                local IsVar = vars.globals[v.word] or functions.globals[v.word]
-                for i=0,scopelevel() do IsVar = IsVar or vars[i][v.word] or functions[i][v.word] end
+                local IsVar = vars.globals[vword] or functions.globals[vword] or classes[vword]
+                for i=0,scopelevel() do IsVar = IsVar or vars[i][vword] or functions[i][vword] end
                 --[[
                 if not(IsVar or v.type~="Unknown") then
                    print(dbg("chopped",chopped,0))
@@ -773,7 +911,7 @@ function mNIL.Translate(script,chunk)
                        assert(not luakeywords[cscope.classname],"NT: Keyword as classname")
                        assert(not nilkeywords[cscope.classname],"NT: Classname is keyword")
                        assert(not _G[cscope.classname],"NT: Cannot use globals defined in 'pure lua' as classname")
-                       classes[cscope.classname]=cscope.classname
+                       classes[cscope.classname]={ name = cscope.classname }
                        ret = ret .. cscope.classname .. " = NILClass.DeclareClass('"..cscope.classname.."',{\n"
                        break
                    elseif v.word=="return" then

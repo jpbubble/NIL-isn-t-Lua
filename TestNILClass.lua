@@ -23,9 +23,9 @@ local NILCode = [[
 //    end
   
   end
-  
-//  MyClass MC
-//  MC = MyClass.New()
+    
+    MyClass MC
+    MC = MyClass.NEW()
 //  MC.Hello()
     
 ]]
