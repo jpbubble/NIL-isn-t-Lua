@@ -32,6 +32,10 @@ local NILCode = [[
     readonly int ro = 20
     readonly string bycons
     
+    int _pi = 10
+    private int pi = 20
+    int pub = 30
+    
     void Hello()
        print(self.h)
        print("Just an integer num "..self.i)
@@ -48,6 +52,11 @@ local NILCode = [[
     
     int getme()
        return 1
+    end
+    
+    int m_pi(int v)
+        self._pi = self._pi + v
+        return self._pi
     end
     
     void CONSTRUCTOR(a,string b)
@@ -80,6 +89,9 @@ local NILCode = [[
     
     print(MC.bycons,MC2.bycons)
     print("getme:",MC.getme())
+    
+    print("Private from method",MC.m_pi(2))
+    
 ]]
 
 

@@ -302,6 +302,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
     assert(class,"NR,NH: Class hack!")
     assert(class.classname==classname,"NR,NH: Class naming hack!")
     local locked = false
+    local allowprivate = false
     local trueclass = {}
     local faketable = {} -- Only used to link the meta table to...
     local metatable = {}
@@ -335,7 +336,9 @@ local function NewFromClass(classname,class, callconstructor, ...)
     
     local function getmethod(func,...)
        return function(...)
+           allowprivate=true
            local ret = func(faketable,...)
+           allowprivate=false
            return ret
        end
     end
@@ -351,6 +354,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
        assert(where,"NR: Class has neither field nor method called "..key)
        local ret = trueclass[where][key]
        assert(ret,"NR,NI/NH: Field or method could not be properly retrieved: "..class.classname.."."..key)
+       assert(allowprivate or (not ret.declaredata.private),"NR: Access to private element denied")
        if (ret.declaredata.ikben=="method") then
           if (where=='fields') then
              return getmethod(ret.declaredata.func)
@@ -371,6 +375,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
        --print("\027[36m\027[40m"..dbg('trueclass',trueclass).."\027[0m")
        local field = trueclass[where][key]
        assert(not (field.declaredata.readonly and locked),"NR: Tried to reassign a read-only field")
+       assert(allowprivate or (not field.declaredata.private),"NR: Access to private element denied")
        local idtype=field.declaredata.idtype
        if idtype=='string' then
           if type(value)=="number" then value=""..value 
@@ -592,6 +597,7 @@ function mNIL.Translate(script,chunk)
             local dostatic=false
             local doabstract=false
             local doreadonly=false
+            local doprivate=false
             local idtype
             local id
             local default = "nil"
@@ -607,6 +613,8 @@ function mNIL.Translate(script,chunk)
                   doabstract=true getout=false tpestart = tpestart + 1
                elseif chopped[tpestart].word=="readonly" then
                   doreadonly=true getout=false tpestart = tpestart + 1
+               elseif chopped[tpestart].word=="private" then
+                  doprivate=true getout=false tpestart = tpestart + 1
                end
             until getout end
             assert( chopped[tpestart].type=="NILKeyword" , "NT: declaration syntax error in "..track )
@@ -636,7 +644,7 @@ function mNIL.Translate(script,chunk)
                functions[wscope][id] = { idtype=idtype, head=fd, params=fp, assertion=fa }
                -- print(dbg('functions',functions))
                assert(not doreadonly,"The keyword 'readonly' is not valid for methods")
-               ret = ret .. "\t['"..id.."'] = { ikben='method', idtype='"..idtype.."', name='"..id.."', static="..blst[dostatic]..", "
+               ret = ret .. "\t['"..id.."'] = { ikben='method', idtype='"..idtype.."', name='"..id.."', static="..blst[dostatic]..", private="..blst[doprivate or prefixed(id,"_")]..", "
                if doabstract then
                   ret = ret .. "abstract = true, "
                else
@@ -682,7 +690,7 @@ function mNIL.Translate(script,chunk)
                else
                   error("NT: Type not yet supported in "..track)
                end
-               ret = ret .. "\t['"..id.."'] = { ikben='field', idtype='".. idtype.."', name='"..id.."', default= "..(psdefault or default)..", static="..blst[dostatic]..", readonly="..blst[doreadonly].."},"
+               ret = ret .. "\t['"..id.."'] = { ikben='field', idtype='".. idtype.."', name='"..id.."', default= "..(psdefault or default)..", static="..blst[dostatic]..", readonly="..blst[doreadonly]..", private="..blst[doprivate or prefixed(id,"_")].."},"
                fields[id]=true
                
             end
