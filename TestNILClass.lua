@@ -16,6 +16,7 @@ local NILCode = [[
     readonly string nochange="You ain't gonna change me"
     static int count = 40
     table testtable
+    readonly int ro = 20
     
     void Hello()
        print(self.h)
@@ -47,6 +48,9 @@ local NILCode = [[
     MC.inc_i(10)
     print(MC.i)
     print( MC.stic(50) )
+    
+    print(MC.ro)
+    // MC.ro=20 // should cause an error!
     
     
 ]]
