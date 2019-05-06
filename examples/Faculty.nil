@@ -4,7 +4,7 @@
 int faculty(int n)
     assert(n>=0,"Negative numbers are NOT welcome here)
     if n==0 then return 1 end
-    return faculty(n-1*n)
+    return faculty(n-1)*n
 end
 
 
