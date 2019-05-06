@@ -1,0 +1,30 @@
+// This is a class in which two points can be put, and the 'distance' field will always contain the distance between them.
+
+
+class Point2Distance
+
+    int x1
+    int x2
+    int y1
+    int y2
+    
+    void CONSTRUCTOR(x1,y1,x2,x2)
+       self.x1=x1
+       self.x2=x2
+       self.y1=y1
+       self.y2=y2
+    end
+    
+    get distance
+       // This is calculated with the Pythagorean Theorem
+       int l1 = math.abs(x1-x2)
+       int l2 = math.abs(y1-y2)
+       return math.sqrt( (l1 * l1) + (l2 * l2) )
+    end
+    
+end
+
+
+var Demo
+Demo = Point2Distance( 10,10,15,20 ) 
+print(Demo.distance) // Output: 11.180339887499
