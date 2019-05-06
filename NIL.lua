@@ -25,7 +25,7 @@ local macros = {["!="]="~="}
 local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
-local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false",
+local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto",
                      "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
@@ -976,7 +976,9 @@ function mNIL.Translate(script,chunk)
                    -- print ("KEYWORD "..v.word)
                    if scopestart==v.word then
                       ret = ret .. " "..v.word.." "
-                      scopestart=nil                   
+                      scopestart=nil
+                   elseif v.word=="goto" then
+                      error("Jump instructions are under no circumstances allowed in NIL, not even in Lua 5.2 or later! And no, don't even request me to add it to NIL, as it ain't gonna happen, and I even put this error in to deliberately block it out!!!")
                    elseif v.word=="do" then
                       ret = ret .. " do "
                       newscope("do",linenumber)
@@ -1161,12 +1163,17 @@ class NIL_BASIC_USE
     
     string Load(string file)
        var f
-       string content
+       string content = ""
        //f=assert(io.open(file,"rb"),"Opening "..file.." failed") 
-       f = io.input(file)
+       f = assert(io.input(file),"NL: Opening "..file.." failed")
        // please note, since f is NOT a NIL class, but a plain Lua table ":" in stead of "." is still needed!
-       // print(f,type(f))
-       content = io.read(f,"*all")
+       //print(f,type(f),"?")
+       repeat
+           var line
+           line = io.read() 
+           if not line then break end
+           content = content .. line .. "\n"
+       forever
        io.close(f)
        return content
     end
@@ -1175,7 +1182,7 @@ end
 
 return NIL_BASIC_USE.NEW()
 ]],"Default Use Script")
-print(UseStuffScript) -- debug
+-- print(UseStuffScript) -- debug
 local UseStuff = loadstring(UseStuffScript)()
 mNIL.UseStuff = UseStuff
 mNIL.UseStuffRestore = function() mNIL.UseStuff=UseStuff end
