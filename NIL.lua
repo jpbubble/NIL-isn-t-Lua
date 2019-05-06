@@ -25,7 +25,7 @@ local macros = {["!="]="~="}
 local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
-local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and",
+local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false",
                      "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
@@ -602,6 +602,7 @@ function mNIL.Translate(script,chunk)
           local scope = scopes[#scopes]
           scope.func = func
           scope.idtype = func.idtype
+          vars[#scopes] = {}
           for _,p in ipairs(func.params) do
               --print(#scopes,p,_)
               vars[#scopes][p]={idtype='var'} -- A stricter setup can come later, but for now this will do!
@@ -1032,7 +1033,7 @@ function mNIL.Translate(script,chunk)
                        ret = ret .. " in "
                    elseif v.word=="break"  then
                       ret = ret .. " break "
-                   elseif v.word=="or" or v.word=="and" or v.word=="not" or v.word=="true" or v.word=="false" or v.word=="self" then
+                   elseif v.word=="or" or v.word=="and" or v.word=="not" or v.word=="true" or v.word=="false" or v.word=="self" or v.word=="nil" then
                       ret = ret .. " "..v.word.." "
                    elseif v.word=="end" then
                       assert(scopelevel()>0,"NT: Key word 'end' encountered, without any open scope!  "..track)
@@ -1136,7 +1137,7 @@ function mNIL.Translate(script,chunk)
 end
 
 function mNIL.Load(script,chunk)
-    return load(mNIL.Translate(script,chunk))
+    return loadstring(mNIL.Translate(script,chunk))
 end
 
 mNIL.LoadString = mNIL.Load
@@ -1147,6 +1148,33 @@ function mNIL.LoadFile(file,chunk)
 	f:close()
 	return mNIL.Load(content,chunk or file)
 end
+
+local UseStuff = mNIL.Load([[
+class NIL_BASIC_USE
+    
+    bool Exists(string file)
+      var f
+      f=io['open'](file,"r")
+      if f~=nil then f:close() return true else return false end
+      // Primitive, but unfortunately when no APIs are present this is the only way Lua can do this.
+    end
+    
+    string Load(string file)
+       var f
+       string content
+       f=io['open'](file,"rb") 
+       // please note, since f is NOT a NIL class, but a plain Lua table ":" in stead of "." is still needed!
+       content = f:read("*all")
+       f:close()
+       return content
+    end
+    
+end
+
+return NIL_BASIC_USE.NEW()
+]],"Default Use Script")
+mNIL.UseStuff = UseStuff
+mNIL.UseStuffRestore = function() mNIL.UseStuff=UseStuff end
 
 return mNIL
 
