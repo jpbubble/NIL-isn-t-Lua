@@ -31,6 +31,10 @@ local luakeywords = {"if","do","for","while","then","repeat","end","until","else
 local nilkeywords = {"number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
+
+
+local used = {}
+
 local mNIL = {}
 
 -- locals are faster than gloabls
@@ -112,6 +116,11 @@ end
 
 local function prefixed(str,prefix) 
    return left(str,#prefix)==prefix 
+end
+
+
+local function suffixed(str,suffix) 
+   return right(str,#suffix)==suffix 
 end
 
 local function itpairs(mytab)
@@ -1184,9 +1193,40 @@ end
 return NIL_BASIC_USE.NEW()
 ]],"Default Use Script")
 -- print(UseStuffScript) -- debug
-local UseStuff = loadstring(UseStuffScript)()
+local UseStuff = loadstring(UseStuffScript,"Default Use Class")()
 mNIL.UseStuff = UseStuff
 mNIL.UseStuffRestore = function() mNIL.UseStuff=UseStuff end
+
+
+function mNIL.Use(lib,...)
+    local letsuse = nil
+    local ulib = lib:upper()
+    if used[ulib] then return used[ulib] end
+    for _,lu in ipairs({
+        lib..".nil",
+        lib..".nlb/"..lib..".nil",
+        lib..".lua",
+        lib..".nlb/"..lib..".lua",
+        lib,
+        lib..".nlb/"..lib
+    }) do
+        if UseStuff.Exists(lu) then letsuse=lu break end
+    end
+    assert(letsuse,"NU: I didn't find a way to properly import a library named "..lib)
+    assert(suffixed(letsuse,".lua") or suffixed(letsuse,".nil"),"NU: Inproper library name!")
+    local script = UseStuff.Load(letsuse)
+    if suffixed(letsuse,".nil") then
+       local ret,err = mNIL.Load(script,letsuse)
+       assert(ret,"NU: Compiling NIL translation failed: "..letsuse.."\n"..(err or "-- Lua error not caught properly"))
+       used[ulib]=ret(...) or true
+       return ret(...)
+    else
+       local ret,err = loadstring(script,letsuse)
+       assert(ret,"NU: Compiling Lua script failed: "..letsuse.."\n"..(err or "-- Lua error not caught properly"))
+       used[ulib]=ret(...) or true
+       return ret(...)
+    end
+end
 
 return mNIL
 
