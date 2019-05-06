@@ -1,0 +1,7 @@
+#macro Greet "Hello World!"
+
+void Hello()
+    print(Greet)
+end
+
+Hello()
