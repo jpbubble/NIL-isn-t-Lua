@@ -26,5 +26,5 @@ end
 
 
 var Demo
-Demo = Point2Distance( 10,10,15,20 ) 
+Demo = Point2Distance.NEW( 10,10,15,20 ) 
 print(Demo.distance) // Output: 11.180339887499
