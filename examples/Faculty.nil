@@ -1,0 +1,14 @@
+// The famous function which always appears to be needed for demonstration
+
+
+int faculty(int n)
+    assert(n>=0,"Negative numbers are NOT welcome here)
+    if n==0 then return 1 end
+    return faculty(n-1*n)
+end
+
+
+// Please note that "do" is not required at the end of the line.
+for i=0,20
+    print(faculty(i))
+end
