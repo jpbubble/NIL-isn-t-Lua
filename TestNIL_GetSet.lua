@@ -1,6 +1,6 @@
 --[[
 ***********************************************************
-TestNILFunctions.lua
+TestNIL_GetSet.lua
 This particular file has been released in the public domain
 and is therefore free of any restriction. You are allowed
 to credit me as the original author, but this is not
@@ -19,42 +19,32 @@ Version 19.05.06
 ]]
 
 
-
-
-
 local NILCode = [[
 
-    global void Hello()
-        print("Hello World")
-    end
-    
-    void Hi(a)
-        print("Hello "..(a or "The nameless one"))
-        return
-    end
-    
-    void Yo(string a)
-        print("Yo! Hey what's happenin', dude!")
-        print(a)
-    end
-    
-    int sum(int a, int b)
-        return a+b
-    end
-    
-    int varsum(a,b)
-        return a+b
-    end
-    
-    
-    Hello()
-    Hi("Jeroen")
-    Yo("Yo")
-    int a
-    a = sum(4,5)
-    print(a)
-    
-    
+      // Line #1
+      class GetSet
+         
+         set string Jeroen
+             if (value=="Jeroen") 
+                print("Hey! That's me")
+             else 
+                print("Jeroen says hello to "..value)
+             end
+         end
+         
+         
+         get string Jeroen
+             return "Jeroen"
+         end
+
+      end
+      
+      var GS
+      GS = GetSet.NEW()
+      print(GS.Jeroen)
+      GS.Jeroen = "Jeroen"
+      GS.Jeroen = "Scyndi"
+
 ]]
 
 
