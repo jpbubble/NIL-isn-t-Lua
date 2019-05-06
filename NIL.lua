@@ -26,7 +26,7 @@ local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and",
-                     "self","switch","case","default","forever","module","class","static","get","set","readonly","private"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
+                     "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
@@ -350,8 +350,17 @@ local function NewFromClass(classname,class, callconstructor, ...)
           if key==".parent" then return class.parent end
           error("Invalid metakey")
        end
-       local where = trueclass.where[key]
+       local where = trueclass.where[key] or trueclass.where["$get."..key]
+       --print(dbg("class",trueclass))
        assert(where,"NR: Class has neither field nor method called "..key)
+       if (trueclass.where["$get."..key]) then
+          local dd = trueclass[where]["$get."..key].declaredata
+          if dd.static then 
+             return dd.func()
+          else
+             return getmethod(dd.func)()
+          end
+       end
        local ret = trueclass[where][key]
        assert(ret,"NR,NI/NH: Field or method could not be properly retrieved: "..class.classname.."."..key)
        assert(allowprivate or (not ret.declaredata.private),"NR: Access to private element denied")
@@ -366,13 +375,21 @@ local function NewFromClass(classname,class, callconstructor, ...)
        end
     end
     
-    function metatable.__newindex(tab,key,value)
-       assert(type(key)=="string","NR: Invalid field")
-       local where = trueclass.where[key]
+    function metatable.__newindex(tab,key,value)       
+       assert(type(key)=="string","NR: Invalid field")       
+       local where = trueclass.where[key] or trueclass.where["$set."..key]
        --print(dbg("trueclass",trueclass))
        assert(where,"NR: Class has neither field nor method called "..key)
        assert(where=="fields" or where=="statics","NR: You can only redefine field variables, and "..key.." belongs to the "..where)
        --print("\027[36m\027[40m"..dbg('trueclass',trueclass).."\027[0m")
+       if (trueclass.where["$set."..key]) then
+          local dd = trueclass[where]["$set."..key].declaredata
+          if dd.static then 
+             return dd.func(value)
+          else
+             return getmethod(dd.func)(value)
+          end
+       end
        local field = trueclass[where][key]
        assert(not (field.declaredata.readonly and locked),"NR: Tried to reassign a read-only field")
        assert(allowprivate or (not field.declaredata.private),"NR: Access to private element denied")
@@ -585,7 +602,6 @@ function mNIL.Translate(script,chunk)
           local scope = scopes[#scopes]
           scope.func = func
           scope.idtype = func.idtype
-          vars[#scopes]={}
           for _,p in ipairs(func.params) do
               --print(#scopes,p,_)
               vars[#scopes][p]={idtype='var'} -- A stricter setup can come later, but for now this will do!
@@ -598,6 +614,7 @@ function mNIL.Translate(script,chunk)
             local doabstract=false
             local doreadonly=false
             local doprivate=false
+            local doget,doset=false,false
             local idtype
             local id
             local default = "nil"
@@ -615,6 +632,10 @@ function mNIL.Translate(script,chunk)
                   doreadonly=true getout=false tpestart = tpestart + 1
                elseif chopped[tpestart].word=="private" then
                   doprivate=true getout=false tpestart = tpestart + 1
+               elseif chopped[tpestart].word=="get" then
+                  doget=true getout=false tpestart = tpestart + 1
+               elseif chopped[tpestart].word=="set" then
+                  doset=true getout=false tpestart = tpestart + 1
                end
             until getout end
             assert( chopped[tpestart].type=="NILKeyword" , "NT: declaration syntax error in "..track )
@@ -626,12 +647,64 @@ function mNIL.Translate(script,chunk)
             assert(chopped[tpestart+1].type=="Unknown","NT: Identifier name ("..chopped[tpestart+1].word..") seems known as a "..chopped[tpestart+1].type.." in "..track)
             assert(ValidForIdentifier(id),"NT: \""..id.."\" is not a valid identifier in "..track)
             do
+               local getset
+               if     (fields["$get."..id]) then getset = not(doset and not(fields['$set.'..id])) 
+               elseif (fields["$set."..id]) then getset = not(doget and not(fields['$get.'..id])) end
                assert(
                   not(
-                    fields[id]
+                    fields[id] or getset
                   ),"NT: Duplicate field identifier \""..id.."\" in "..track)
             end
-            if #chopped>tpestart+2 and chopped[tpestart+2].word=="(" then   
+            if (doget) then
+                local this=''                
+                if not dostatic then
+                   this='self'
+                end
+                ret = ret .. "\t['$get."..id.."'] = { ikben='get', idtype='"..idtype.."', name='"..id.."', static="..blst[dostatic]..", private="..blst[doprivate or prefixed(id,"_")]..", func=function("..this..")"
+                scopes[#scopes+1] = {
+                    kind='function',
+                    idtype=idtype,
+                    func = { params = {}, idtype=idtype },
+                    head = "("..this..")",
+                    linenumber=linenumber
+                }
+                if not dostatic then
+                   scopes[#scopes].func.params = {"self"}
+                   vars[#scopes] = { self= {idtype='var', ikben='variable', name='value'}}
+                end
+            elseif (doset) then
+                local this=''
+                local thiscomma=""
+                if not dostatic then
+                   this='self'
+                   thiscomma="self,"
+                end
+                ret = ret .. "\t['$set."..id.."'] = { ikben='set', idtype='void', name='"..id.."', static="..blst[dostatic]..", private="..blst[doprivate or prefixed(id,"_")]..", func=function("..thiscomma.."value)"
+                local assertion
+                if idtype == "var" then assertion = nil
+                elseif idtype=="number"   then assertion="type(value)=='number'"
+                elseif idtype=="string"   then assertion="type(value)=='string'"
+                elseif idtype=="boolean"  then assertion="type(value)=='boolean'"
+                elseif idtype=="table"    then assertion="type(value)=='table' or value==nil"
+                elseif idtype=="userdata" then assertion="type(value)=='userdata' or value==nil"
+                elseif idtype=="void"     then error("NT: void vannot be used for this!")
+                else                           assertion="value=nil or NIL.BelongsToClass(value,"..idtype..")"
+                end
+                if assertion then ret = ret .. "assert("..assertion..", \"NR: Expected '"..idtype.."' to set '"..id.."'\")" end
+                scopes[#scopes+1] = {
+                    kind='function',
+                    idtype='void',
+                    func = { params = {'value'}, assertion = assertion },
+                    head = "("..thiscomma.."value)",
+                    linenumber=linenumber
+                }
+                vars[#scopes]={value={idtype=idtype, ikben='variabe', name='value'}}
+                if not dostatic then
+                   scopes[#scopes].func.params = {'self','value'}
+                   vars[#scopes].self = {idtype='var', ikben='variable', name='value'}
+                end
+                
+            elseif #chopped>tpestart+2 and chopped[tpestart+2].word=="(" then   
                --error("NT: Methods not supported yet!") --[[
                assert(
                     chopped[#chopped].word==")" or 
@@ -1038,7 +1111,7 @@ function mNIL.Translate(script,chunk)
                                 ret = ret .. "return " -- stricter checkups CAN come later
                              end
                           else
-                                 error("Current setup cannot return in this kind of function yet! -- "..track)
+                                 error("NT: Current setup cannot return in this kind of function yet! -- "..(func.idtype or "none set").." -- "..track)
                           end
                       end
                    else 
