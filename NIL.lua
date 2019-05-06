@@ -958,7 +958,7 @@ function mNIL.Translate(script,chunk)
                 end
                 vars[#scopes] = vars[#scopes] or {}
                 functions[#scopes] = functions[#scopes] or {}
-                local IsVar = vars.globals[vword] or functions.globals[vword] or classes[vword]
+                local IsVar = vars.globals[vword] or functions.globals[vword] or classes[vword] or _G[vword]
                 for i=0,scopelevel() do IsVar = IsVar or vars[i][vword] or functions[i][vword] end
                 --[[
                 if not(IsVar or v.type~="Unknown") then
@@ -1149,7 +1149,7 @@ function mNIL.LoadFile(file,chunk)
 	return mNIL.Load(content,chunk or file)
 end
 
-local UseStuff = mNIL.Load([[
+local UseStuffScript = mNIL.Translate([[
 class NIL_BASIC_USE
     
     bool Exists(string file)
@@ -1162,10 +1162,12 @@ class NIL_BASIC_USE
     string Load(string file)
        var f
        string content
-       f=io['open'](file,"rb") 
+       //f=assert(io.open(file,"rb"),"Opening "..file.." failed") 
+       f = io.input(file)
        // please note, since f is NOT a NIL class, but a plain Lua table ":" in stead of "." is still needed!
-       content = f:read("*all")
-       f:close()
+       // print(f,type(f))
+       content = io.read(f,"*all")
+       io.close(f)
        return content
     end
     
@@ -1173,6 +1175,8 @@ end
 
 return NIL_BASIC_USE.NEW()
 ]],"Default Use Script")
+print(UseStuffScript) -- debug
+local UseStuff = loadstring(UseStuffScript)()
 mNIL.UseStuff = UseStuff
 mNIL.UseStuffRestore = function() mNIL.UseStuff=UseStuff end
 
