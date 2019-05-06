@@ -20,8 +20,19 @@ Version 19.05.06
 ]]
 
 
--------
+--[[
 
+  Top line should be
+  
+  require "NIL_Love"
+  
+  And that should do (if both NIL.Lua and NIL_Love.lua are present!
+  I never tested this code, it SHOULD work, but if it doesn't please note it in my issue tracker!
+
+  Oh, and I must mention, troll report and otherwise rude or arrogant reports will be closed 
+  immediately their sender banned, and I won't waste my time to provide an explanation!
+
+]]
 
 
 assert(not NIL,"Hey! NIL may not be loaded prior to calling NIL_Love!")
