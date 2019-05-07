@@ -19,6 +19,7 @@ Version 19.05.07
 ]]
 
 
+
 local NILCode = [[
        void Hello()
           print("Hello World")
@@ -42,5 +43,6 @@ print("Original:\n"..NILCode,"\n\nTranslation:\n"..NILTrans)
 print("Executing transation!")
 local l = loadstring(NILTrans,"Translation")
 l()
+
 
 
