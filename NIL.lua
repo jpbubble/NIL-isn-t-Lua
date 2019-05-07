@@ -1033,8 +1033,11 @@ function mNIL.Translate(script,chunk)
                
             end               
          else
+            local IgnoreUntil
             for i,v in ipairs(chopped) do
-              if v.word~="" then -- I don't understand how these come in, but they do!
+              if IgnoreUntil then
+                 if v.word==IgnoreUntil then IgnoreUntil=nil end
+              elseif v.word~="" then -- I don't understand how these come in, but they do!
                 --[[
                 if i==1 then
                   local tabs=#scopes
@@ -1082,6 +1085,13 @@ function mNIL.Translate(script,chunk)
                 if i~=1 then ret = ret .. " " end
                 if prefixed(v.word,"//") then 
                    ret = ret .. "--"..Right(v.word,#v.word-2)
+                elseif i~=1 and (v.word=='void' or v.word=='int' or v.word=='number' or v.word=='string' or v.word=='boolean' or v.word=='table' or v.word=='function' or v.word=='delegate' or classes[v.word]) then
+                       assert(chopped[i+1] and chopped[i+1].word=="(","NT: Invalid delegate definition in "..track)
+                       local fd,fp,fa = buildfunction("",chopped,i+1,track)
+                       local f = { idtype=v.word, head=fd, params=fp, assertion=fa }
+                       StartFunctionScope(linenumber,f)
+                       IgnoreUntil=")"
+                       --error("DEBUG -- operation in progress!")
                 elseif luakeywords[v.word] or v.type=="LuaKeyword" then
                    -- print ("KEYWORD "..v.word)
                    if scopestart==v.word then

@@ -7,6 +7,11 @@ local NILCode = [[
        delegate Hi
        Hi = Hello
        Hi()
+       
+       Hi = void()
+          print("Hi folks!")
+       end
+       Hi()
 ]]
 
 local NIL=require "NIL"
