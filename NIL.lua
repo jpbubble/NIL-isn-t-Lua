@@ -31,6 +31,7 @@ local luakeywords = {"if","do","for","while","then","repeat","end","until","else
 local nilkeywords = {"number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
+local globusedforuse = {}
 
 
 local used = {}
@@ -199,13 +200,22 @@ local function chop(amystring,pure,atrack)
   local mystring=""
   do 
    local o = 0
+   local s = nil
    for i=1,#amystring do
+     if mid(amystring,i,1)=="\"" or  mid(amystring,i,1)=="'" then 
+         if not s then s = mid(amystring,i,1)
+         elseif mid(amystring,i,1)==s then s=nil end
+     end
+     -- print(i,s,amystring,mystring,mid(amystring,i,1))
+     if s then mystring = mystring .. mid(amystring,i,1) end
+     if not s then
       if o==0 then
         for _,op in ipairs(operators) do 
             if mid(amystring,i,#op)==op then o=#op mystring = mystring .. " "..op.." " break end
         end
       end
       if o>0 then o = o - 1 elseif mid(amystring,i,1)=="\t" or mid(amystring,i,1)=="\r" then mystring = mystring .. " " else mystring = mystring .. mid(amystring,i,1) end
+     end
    end
    local changed
    repeat
@@ -213,7 +223,7 @@ local function chop(amystring,pure,atrack)
      changed = ns~=mystring
      mystring=ns
    until not changed
-   -- print ( mystring )
+    -- print ( mystring )
   end
   for i=1,#mystring do
       local c=mid(mystring,i,1)
@@ -508,8 +518,26 @@ function NILClass.BelongsToClass(v,c) -- Will also check parent variables *if* t
    return false
 end
 
+local function ch2string(ch)
+   print(ch.type,ch.word)
+   if ch.type~="string" then return ch.word end
+   local ret = ch.word
+   if prefixed(ret,'"') or prefixed(ret,"'") then ret=right(ret,#ret-1) end
+   if suffixed(ret,'"') or suffixed(ret,"'") then ret= left(ret,#ret-1) end
+   return ret
+end
+
+local function usef2id(usef)
+   local u = replace(usef,"\\","/")
+   local s = split(u,"/")
+   local r = s[#s]
+   local i = split(r,".")
+   return i[1]
+end
+
 -- Translator itself
 function mNIL.Translate(script,chunk)
+    assert(type(script)=='string',"NT: Translate wants a string for a script and not a "..type(script))
     local ret = ""
     local lines = split(script,"\n")
     local lmacro = {}
@@ -649,7 +677,7 @@ function mNIL.Translate(script,chunk)
                   doset=true getout=false tpestart = tpestart + 1
                end
             until getout end
-            assert( chopped[tpestart].type=="NILKeyword" , "NT: declaration syntax error in "..track )
+            assert( chopped[tpestart].type=="NILKeyword" , "NT: declaration syntax error (Unexpected "..chopped[tpestart].type..">"..chopped[tpestart].word.." in "..track )
             idtype=chopped[tpestart].word
             --assert(idtype~="class","NT: Classes have not yet been supported! "..track)
             if idtypes[idtype] then idtype=idtypes[idtype] end
@@ -813,8 +841,39 @@ function mNIL.Translate(script,chunk)
                if chopped[2] then s=chopped[2].word end
                s = s:upper()
                allowrepeatend = s~="NO" and s~="FALSE" and s~="OFF"
+               ret = ret .. "--[[ Autosetting changed ]]"
+            elseif chopped[1].word=="#use" or chopped[1].word=="#globaluse" or chopped[1].word=="#localuse" then
+               assert(chopped[2],"NT: #use/#localuse/#globaluse expects a library/module in "..track)
+               local libname = ch2string(chopped[2])
+               local idname  = usef2id(libname)
+               local id_dat = {kind='var'}
+               if chopped[3] and chopped[3].word~="" then 
+                  assert(chopped[3].word:upper()=="AS","NT: 'as' expected no "..chopped[3].word.." in "..track)
+                  assert(chopped[4],"NT: identifer expected after 'as'")
+                  idname=chopped[4].word
+               end
+               mNIL.Use(libname) -- Make sure _G and NIL's global settings are updated
+               assert(ValidForIdentifier(idname),"NT: Invalid identifier name ("..idname..") in "..track)
+               if chopped[1].word=="#use" then
+                  assert(globusedforuse[idname] or (not vars.globals[idname]),"NT: #use request leads to duping identifier in "..track)
+                  globusedforuse[idname]=true
+                  vars.globals[idname]=id_dat
+                  vars[#scopes]=vars[#scopes] or {}
+                  vars[#scopes][idname]=id_dat
+                  assert(vars[#scopes][idname],"NT: #use dupes a local identifier in "..track)
+                  ret = ret .. idname.." = UseNIL(\""..libname.."\") local "..idname.." = "..idname.."\n"                  
+               elseif chopped[1].word=="#localuse" then
+                  vars[#scopes]=vars[#scopes] or {}
+                  assert(vars[#scopes][idname],"NT: #use dupes a local identifier in "..track)
+                  ret = ret .. "local "..idname.." = UseNIL(\""..libname.."\")\n"
+               elseif chopped[1].word=="#globaluse" then
+                  assert(globusedforuse[idname] or (not vars.globals[idname]),"NT: #use request leads to duping identifier in "..track)
+                  globusedforuse[idname]=true
+                  vars.globals[idname]=id_dat
+                  ret = ret .. idname.." = UseNIL(\""..libname.."\")\n"
+               end
             else
-               error("Unexpected directive in "..track)
+               error("Unexpected/unknown directive in "..track)
             end
          elseif scopes[#scopes].kind=="class" then
             local scope=scopes[#scopes]
@@ -1201,7 +1260,14 @@ mNIL.UseStuffRestore = function() mNIL.UseStuff=UseStuff end
 function mNIL.Use(lib,...)
     local letsuse = nil
     local ulib = lib:upper()
-    if used[ulib] then return used[ulib] end
+    if used[ulib] then 
+       print("Retrieve from used")
+       return used[ulib] 
+       -- --[[
+    else
+       print("Not yet used before so creating new")
+       --]]       
+    end
     for _,lu in ipairs({
         lib..".nil",
         lib..".nlb/"..lib..".nil",
@@ -1219,14 +1285,15 @@ function mNIL.Use(lib,...)
        local ret,err = mNIL.Load(script,letsuse)
        assert(ret,"NU: Compiling NIL translation failed: "..letsuse.."\n"..(err or "-- Lua error not caught properly"))
        used[ulib]=ret(...) or true
-       return ret(...)
+       return used[ulib]
     else
        local ret,err = loadstring(script,letsuse)
        assert(ret,"NU: Compiling Lua script failed: "..letsuse.."\n"..(err or "-- Lua error not caught properly"))
        used[ulib]=ret(...) or true
-       return ret(...)
+       return used[ulib]
     end
 end
+UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
 

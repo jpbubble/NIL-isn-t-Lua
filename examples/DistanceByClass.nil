@@ -8,17 +8,20 @@ class Point2Distance
     int y1
     int y2
     
-    void CONSTRUCTOR(x1,y1,x2,x2)
+    void CONSTRUCTOR(x1,y1,x2,y2)
        self.x1=x1
        self.x2=x2
        self.y1=y1
        self.y2=y2
+       return
     end
     
-    get distance
+    get int distance
        // This is calculated with the Pythagorean Theorem
-       int l1 = math.abs(x1-x2)
-       int l2 = math.abs(y1-y2)
+       int l1
+       int l2
+       l1 = math.abs(self.x1-self.x2)
+       l2 = math.abs(self.y1-self.y2)
        return math.sqrt( (l1 * l1) + (l2 * l2) )
     end
     
