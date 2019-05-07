@@ -93,6 +93,20 @@ local function split(inputstr, sep)
         return t
 end
 
+
+local function split(inputstr, sep)
+        if sep == nil then
+                sep = "%s"
+        end
+        local t={} ; local i=1
+        for str in string.gmatch(inputstr, "([^"..sep.."]+)") do
+                t[i] = str
+                i = i + 1
+        end
+        return t
+end
+      
+
 local substr = string.sub
 local function left(s,l)
 return substr(s,1,l)
@@ -110,6 +124,29 @@ local function mid(s,o,l)
   local st=s or ""
   return substr(st,of,(of+ln)-1)
 end local Mid=mid
+
+-- slower, more amateur, but it should fix the whiteline ignore bug!
+local function brutesplit(inputstr,sep)
+      local s = sep or "\n"
+      local t={}
+      local i=1
+      local ti=1
+      local skip=0
+      for i=1,#inputstr do
+          if mid(inputstr,i,#sep)==sep then 
+             ti = ti + 1 
+             skip=#sep-1
+          elseif skip>0 then
+             skip = skip - 1 
+          else
+             t[ti] = t[ti] or ""
+             t[ti] = t[ti] .. mid(inputstr,i,1)
+          end
+      end
+      -- for i,v in ipairs(t) do print(i,v) end
+      return t
+end
+
 
 local function trim(s)
   return (s:gsub("^%s*(.-)%s*$", "%1"))
@@ -539,7 +576,7 @@ end
 function mNIL.Translate(script,chunk)
     assert(type(script)=='string',"NT: Translate wants a string for a script and not a "..type(script))
     local ret = ""
-    local lines = split(script,"\n")
+    local lines = split(replace(script,"\n\n","\n// whiteline!\n"),"\n")
     local lmacro = {}
     local amacro = {lmacro,macros}
     local scopes = {[0]={kind="Base Scope",line=0}}
@@ -882,7 +919,7 @@ function mNIL.Translate(script,chunk)
             if #chopped == 1 and chopped[1] and chopped[1].word=="end" then
                ret = ret .. "}"
                if scope.extends then ret = ret .. ","..scope.extends end
-               ret = ret .. ")\n"
+               ret = ret .. ")"
                vars[#scopes]=nil
                functions[#scopes]=nil
                scopes[#scopes]=nil
@@ -1250,9 +1287,13 @@ class NIL_BASIC_USE
 end
 
 return NIL_BASIC_USE.NEW()
+
 ]],"Default Use Script")
 -- print(UseStuffScript) -- debug
-local UseStuff = loadstring(UseStuffScript,"Default Use Class")()
+local UseStuffF = assert(loadstring(UseStuffScript,"Default Use Class"))
+print(UseStuffF)
+local UseStuff = assert(UseStuffF())
+
 mNIL.UseStuff = UseStuff
 mNIL.UseStuffRestore = function() mNIL.UseStuff=UseStuff end
 
