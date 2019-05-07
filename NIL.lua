@@ -1277,6 +1277,10 @@ end
 local UseStuffScript = mNIL.Translate([[
 class NIL_BASIC_USE
     
+	get string NAME
+	    return 'NIL Default'
+	end
+
     bool Exists(string file)
       var f
       f=io['open'](file,"r")
@@ -1334,11 +1338,11 @@ function mNIL.Use(lib,...)
         lib,
         lib..".nlb/"..lib
     }) do
-        if UseStuff.Exists(lu) then letsuse=lu break end
+        if mNIL.UseStuff.Exists(lu) then letsuse=lu break end
     end
     assert(letsuse,"NU: I didn't find a way to properly import a library named "..lib)
     assert(suffixed(letsuse,".lua") or suffixed(letsuse,".nil"),"NU: Inproper library name!")
-    local script = UseStuff.Load(letsuse)
+    local script = mNIL.UseStuff.Load(letsuse)
     if suffixed(letsuse,".nil") then
        local ret,err = mNIL.Load(script,letsuse)
        assert(ret,"NU: Compiling NIL translation failed: "..letsuse.."\n"..(err or "-- Lua error not caught properly"))
