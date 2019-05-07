@@ -16,8 +16,9 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-Version 19.05.06
+Version 19.05.07
 ]]
+
 
 
 
@@ -39,6 +40,7 @@ local used = {}
 local mNIL = {}
 
 -- locals are faster than gloabls
+local loadstring = loadstring or load
 local io=io
 local assert=assert
 local load=load
@@ -49,6 +51,7 @@ local table=table
 local type=type
 local tonumber=tonumber
 local print=print
+
 
 -- A few functions I need to get NIL to work anyway!
 local replace = string.gsub
@@ -556,7 +559,7 @@ function NILClass.BelongsToClass(v,c) -- Will also check parent variables *if* t
 end
 
 local function ch2string(ch)
-   print(ch.type,ch.word)
+   --print(ch.type,ch.word)
    if ch.type~="string" then return ch.word end
    local ret = ch.word
    if prefixed(ret,'"') or prefixed(ret,"'") then ret=right(ret,#ret-1) end
@@ -1203,7 +1206,7 @@ function mNIL.Translate(script,chunk)
                         if retscope==0 then ret = ret .. "return" else
                           local scope=scopes[retscope]
                           local func = scope.func
-                          if (not func) then print(dbg('scope',scope)) end
+                          -- if (not func) then print(dbg('scope',scope)) end
                           -- print(dbg("Translating return",func))
                           if func.idtype=="void" then 
                              ret = ret .. "return;"  -- This will enforce an error if people try to return values through a void, and if not an error, the value will be ignored, either way, this blocks voids from returning values! :P
@@ -1305,7 +1308,7 @@ return NIL_BASIC_USE.NEW()
 ]],"Default Use Script")
 -- print(UseStuffScript) -- debug
 local UseStuffF = assert(loadstring(UseStuffScript,"Default Use Class"))
-print(UseStuffF)
+-- print(UseStuffF)
 local UseStuff = assert(UseStuffF())
 
 mNIL.UseStuff = UseStuff
@@ -1316,11 +1319,11 @@ function mNIL.Use(lib,...)
     local letsuse = nil
     local ulib = lib:upper()
     if used[ulib] then 
-       print("Retrieve from used")
+       --print("Retrieve from used")
        return used[ulib] 
        -- --[[
     else
-       print("Not yet used before so creating new")
+       --print("Not yet used before so creating new")
        --]]       
     end
     for _,lu in ipairs({
@@ -1351,5 +1354,6 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 

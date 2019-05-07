@@ -15,8 +15,9 @@ not longer than 70 years ago, you can deem this file
 with basically comes down to the same lack of
 restriction the public domain offers. (YAY!)
 ***********************************************************
-Version 19.05.06
+Version 19.05.07
 ]]
+
 
 
 local NILCode = [[
@@ -56,4 +57,5 @@ print("Original:\n"..NILCode,"\n\nTranslation:\n"..NILTrans)
 print("Executing transation!")
 local l = loadstring(NILTrans,"Translation")
 l()
+
 
