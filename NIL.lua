@@ -423,7 +423,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
        end
        local ret = trueclass[where][key]
        assert(ret,"NR,NI/NH: Field or method could not be properly retrieved: "..class.classname.."."..key)
-       assert(allowprivate or (not ret.declaredata.private),"NR: Access to private element denied")
+       assert(allowprivate or (not ret.declaredata.private),"NR: Access to private element ("..key..") denied")
        if (ret.declaredata.ikben=="method") then
           if (where=='fields') then
              return getmethod(ret.declaredata.func)
@@ -452,7 +452,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
        end
        local field = trueclass[where][key]
        assert(not (field.declaredata.readonly and locked),"NR: Tried to reassign a read-only field")
-       assert(allowprivate or (not field.declaredata.private),"NR: Access to private element denied")
+       assert(allowprivate or (not field.declaredata.private),"NR: Access to private ("..key..") element denied")
        local idtype=field.declaredata.idtype
        if idtype=='string' then
           if type(value)=="number" then value=""..value 
@@ -1056,8 +1056,9 @@ function mNIL.Translate(script,chunk)
                     if vc=="." or vc==":" then 
                        if vword~="" then
                           local vclass
-                          for si=#scopes,0,-1 do
+                          for si=#scopes,0,-1 do                              
                               local sid = si; if sid==0 then sid='globals' end
+                              vars[sid] = vars[sid] or {}
                               local fvar = vars[sid][vword] -- found var
                               if fvar and classes[fvar.idtype] then
                                  if classes[fvar.idtype].methods[vword] then
@@ -1088,7 +1089,7 @@ function mNIL.Translate(script,chunk)
                 if i~=1 then ret = ret .. " " end
                 if prefixed(v.word,"//") then 
                    ret = ret .. "--"..Right(v.word,#v.word-2)
-                elseif i~=1 and (v.word=='void' or v.word=='int' or v.word=='number' or v.word=='string' or v.word=='boolean' or v.word=='table' or v.word=='function' or v.word=='delegate' or classes[v.word]) then
+                elseif i~=1 and (v.word=='void' or v.word=='int' or v.word=='number' or v.word=='string' or v.word=='boolean' or v.word=='table' or v.word=='function' or v.word=='delegate' or v.word=="var" or classes[v.word]) then
                        assert(chopped[i+1] and chopped[i+1].word=="(","NT: Invalid delegate definition in "..track)
                        local fd,fp,fa = buildfunction("",chopped,i+1,track)
                        local f = { idtype=v.word, head=fd, params=fp, assertion=fa }
@@ -1236,6 +1237,10 @@ function mNIL.Translate(script,chunk)
                              else
                                 ret = ret .. "return " -- stricter checkups CAN come later
                              end
+                          elseif func.idtype=="var" then
+                             ret = ret .. "return "
+                          elseif func.idtype=="function" then
+                             ret = ret .. "return "
                           else
                                  error("NT: Current setup cannot return in this kind of function yet! -- "..(func.idtype or "none set").." -- "..track)
                           end
@@ -1262,7 +1267,7 @@ function mNIL.Translate(script,chunk)
 end
 
 function mNIL.Load(script,chunk)
-    return loadstring(mNIL.Translate(script,chunk))
+    return loadstring(mNIL.Translate(script,chunk),"Trans: "..(chunk or "?"))
 end
 
 mNIL.LoadString = mNIL.Load
@@ -1330,11 +1335,16 @@ function mNIL.Use(lib,...)
        --print("Not yet used before so creating new")
        --]]       
     end
+    local pathlesslib
+    do
+       local s = split(lib,"/")
+       pathlesslib=s[#s]
+    end
     for _,lu in ipairs({
         lib..".nil",
-        lib..".nlb/"..lib..".nil",
+        lib..".nlb/"..pathlesslib..".nil",
         lib..".lua",
-        lib..".nlb/"..lib..".lua",
+        lib..".nlb/"..pathlesslib..".lua",
         lib,
         lib..".nlb/"..lib
     }) do
