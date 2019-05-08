@@ -18,6 +18,7 @@
 // Version 19.05.08
 // End License Information
 
+
 // The famous function which always appears to be needed for demonstration
 
 
@@ -32,3 +33,4 @@ end
 for i=0,12
     print("!"..i,string.format("%20d",faculty(i)))
 end
+

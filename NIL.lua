@@ -23,6 +23,7 @@ Version 19.05.08
 
 
 
+
 -- Variables
 local macros = {["!="]="~="}
 local vars = {}
@@ -1404,6 +1405,7 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 
 

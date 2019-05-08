@@ -19,6 +19,7 @@
 // Version 19.05.08
 // End License Information
 
+
 // This is a class in which two points can be put, and the 'distance' field will always contain the distance between them.
 
 
@@ -52,4 +53,5 @@ end
 var Demo
 Demo = Point2Distance.NEW( 10,10,15,20 ) 
 print(Demo.distance) // Output: 11.180339887499
+
 
