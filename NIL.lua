@@ -1077,7 +1077,12 @@ function mNIL.Translate(script,chunk)
                 vars[#scopes] = vars[#scopes] or {}
                 functions[#scopes] = functions[#scopes] or {}
                 local IsVar = vars.globals[vword] or functions.globals[vword] or classes[vword] or _G[vword]
-                for i=0,scopelevel() do IsVar = IsVar or vars[i][vword] or functions[i][vword] end
+                for i=0,scopelevel() do 
+                    --print('scope #'..i.."/"..#scopes)
+                    IsVar = IsVar or 
+                         vars[i][vword] or 
+                         functions[i][vword] 
+                    end
                 --[[
                 if not(IsVar or v.type~="Unknown") then
                    print(dbg("chopped",chopped,0))
@@ -1099,7 +1104,7 @@ function mNIL.Translate(script,chunk)
                        --error("DEBUG -- operation in progress!")
                 elseif luakeywords[v.word] or v.type=="LuaKeyword" then
                    -- print ("KEYWORD "..v.word)
-                   if scopestart==v.word then
+                   if scopestart==v.word and scopestart~=")" then
                       ret = ret .. " "..v.word.." "
                       scopestart=nil
                    elseif v.word=="goto" then
@@ -1173,6 +1178,14 @@ function mNIL.Translate(script,chunk)
                       elseif scopetype()=="function" then
                          scopes[scopelevel()] = nil
                          ret = ret .. "end"
+                      elseif scopetype()=="case" or scopetype()=="default" then
+                         ret = ret .. "end end"
+                         vars[scopelevel()]   = nil
+                         functions[#scopes]   = nil
+                         scopes[scopelevel()] = nil
+                         vars[scopelevel()]   = nil
+                         functions[#scopes]   = nil
+                         scopes[scopelevel()] = nil
                       else
                          scopes[scopelevel()] = nil
                          ret = ret .. "end"
@@ -1198,6 +1211,28 @@ function mNIL.Translate(script,chunk)
                        classes[cscope.classname]={ name = cscope.classname }
                        ret = ret .. cscope.classname .. " = NILClass.DeclareClass('"..cscope.classname.."',{\n"
                        break
+                   elseif i==1 and v.word=="switch" then
+                       ret = ret .. "do local switch=("
+                       newscope("switch",linenumber)
+                       vars[#scopes] = {}
+                       scopestart=")"
+                   elseif i==1 and v.word=="case" then
+                       assert(scopes[#scopes].kind=="switch" or scopes[#scopes].kind=="case","NT: Case scopes expected in "..track)
+                       if scopes[#scopes].kind=="switch" then ret = ret .. "--[[ CASE ]] if " else ret = ret .."--[[ CASE ]] elseif " vars[#scopes]=nil functions[#scopes]=nil scopes[#scopes]=nil end
+                       local ex 
+                       for i=2,#chopped do 
+                           if chopped[i].word~="" then
+                              assert(chopped[2].type=="string" or chopped[2].type=="number" or chopped[2].word=="true" or chopped[2].word=="false","NT: Constant required for case in "..track)
+                              if not ex then ex="" else ex = ex .. " or " end
+                              ex = ex .. "switch == "..chopped[i].word
+                           end
+                       end
+                       ret = ret .. ex .. " then --"
+                       newscope("case",linenumber)
+                   elseif i==1 and v.word=="default" then
+                       assert(scopes[#scopes].kind=="switch" or scopes[#scopes].kind=="case","NT: Case scopes expected in "..track)
+                       if scopes[#scopes].kind=="switch" then ret = ret .. "--[[ DEFAULT ]] do -- " else vars[#scopes]=nil functions[#scopes]=nil scopes[#scopes]=nil  ret = ret .."--[[ DEFAULT ]] else -- " end                   
+                       newscope("default",linenumber)
                    elseif v.word=="return" then
                         local retscope = #scopes
                         while(retscope>0) do
