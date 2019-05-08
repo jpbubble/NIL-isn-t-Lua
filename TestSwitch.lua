@@ -18,6 +18,7 @@ restriction the public domain offers. (YAY!)
 Version 19.05.08
 ]]
 
+
 local NILCode =
 [[ // Right, let's put this to the test!
 
@@ -49,4 +50,5 @@ print("Original:\n"..NILCode,"\n\nTranslation:\n"..NILTrans)
 print("Executing transation!")
 local l = loadstring(NILTrans,"Translation")
 l()
+
 
