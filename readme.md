@@ -1,3 +1,5 @@
+![NIL Isn't Lua](https://i.imgur.com/FaKy8lC.png)
+
 # NIL Isn't Lua (Yeah, that's what the acronym stands for).
 
 Lua is a wonderful scripting language, but it does also have some downsides, which are not really a problem for small addons, and just quick game scripting (for which Lua was originally intended), but as Lua is becoming more and 
