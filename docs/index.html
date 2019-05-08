@@ -59,7 +59,25 @@
 								<header class="major">
 									<h2>How does it work?</h2>
 								</header>
-								<p>For my upcoming games I’ve created my own “programming language” named NIL. Of course, I already have the Scyndi programming language, but NIL was set up from a completely different perspective than Scyndi, so it would be best to even TRY to compare the two. NIL is an acronym and stands for “NIL isn’t Lua”. Well, I guess that makes the relation with Lua a bit clear, but that it is slightly different. NIL is a kind of pre-processor for Lua, written completely in Lua.</p>
+								<p>Lua is a wonderful scripting language, but it does also have some downsides, which are not really a problem for small addons, and just quick game scripting (for which Lua was originally intended), but as Lua is becoming more and<br>
+more sure for huge projects, and some of them really complex, some feature Lua lacks, and some setups in the language can become rather… shall we say… problematic.</p>
+<p>To name few:</p>
+<ul>
+<li>Variables are not declared in Lua. Any variable never used before simply contains “nil”. When you somewhere in you code mispel a variable in a complex piece of code, this will eventually haunt you. No problem is quick code, but<br>
+in complex code, I don’t like this. NIL does therefore require all variables to be declared before they can be used.</li>
+<li>NIL does therefore also have a bit of ‘stronger’ type setup, although this is not yet set up to be completely waterproof, The “var” type can still contain anything.</li>
+<li>Lua does not support constants at all, and you can either use variables, but since you can still change them, that’s not a very elegant way to solve things, or just write it all out, but that can backfire if you need to change<br>
+stuff. For NIL I will put in macros. Be careful with them, as macros will be processed before NIL translates the code to Lua and, and thus also before the Lua parser sees anything, and basically anything, even keywords can be<br>
+turned into a macro. I am NOT planning (like C does) to allow macros to have parameters.</li>
+<li>I miss the “switch” statement, so NIL will definitely support it!</li>
+<li>Now in Lua every variable is a global unless specifically declared as a local. For NIL I’m planning to work the other way around. First of all, locals are faster than globals in Lua, and second many programming teachers will<br>
+teach you to avoid using globals as much as possible, so I guess it only makes sense to go for locals by default.</li>
+<li>Lua has no official support for classes. On this moment we can fool around with tables and maybe even metatables, but a real class environement is not yet there. The first versions of NIL will not yet support this, but if you can<br>
+help me on this, that’d be great.</li>
+</ul>
+<p>Originally NIL has been developed as part of the “BUBBLE” project, but I’ve decided to make this as little reliant on BUBBLE as possible, so other Lua engines (such as LOVE2D, or if you want World of Warcraft addons and so on) can<br>
+also benefit here, so as much “pure Lua” to create NIL in as possible. This will mean that a few features BUBBLE will support won’t be supported on other engines, I guess this cannot be avoided. The “#use” directive will be the<br>
+most notable example of this.</p>
 								<footer class="major">
 									<ul class="actions special">
 										<li><a href="https://github.com/jpbubble/NIL-isn-t-Lua" class="button">View Source Code</a></li>
