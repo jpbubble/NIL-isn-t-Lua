@@ -475,6 +475,13 @@ local function NewFromClass(classname,class, callconstructor, ...)
        trueclass[where][key].value=value
     end
     
+    function metatable.__gc(tab)
+        if (trueclass.fields.DESTRUCTOR) then
+           assert(trueclass.fields.DESTRUCTOR.declaredata.func and trueclass.fields.DESTRUCTOR.declaredata.idtype=="void" and (not trueclass.statics.DESTRUCTOR),"NR: Destructors may only exist as non-static 'void' functions!") 
+           trueclass.fields.DESTRCUTOR.declaredata.func(faketable)
+        end
+    end
+    
     setmetatable(faketable,metatable)
     if (callconstructor and trueclass.fields.CONSTRUCTOR) then
        assert(trueclass.fields.CONSTRUCTOR.declaredata.func and trueclass.fields.CONSTRUCTOR.declaredata.idtype=="void" and (not trueclass.statics.CONSTRUCTOR),"NR: Constructors may only exist as non-static 'void' functions!")
