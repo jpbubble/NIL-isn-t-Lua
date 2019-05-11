@@ -19,12 +19,6 @@ THE SOFTWARE.
 Version 19.05.10
 ]]
 
-
-
-
-
-
-
 -- Variables
 local macros = {["!="]="~="}
 local vars = {}
@@ -598,6 +592,7 @@ function mNIL.Translate(script,chunk)
     local scopestart = nil
     local allowrepeatend
     local forwards = {}
+    local accepted = {}
     local function newscope(kind,ln) scopes[#scopes+1] = { kind=kind, line=ln } end
     local function buildfunction(id,chopped,tpestart,track,needself)        
           -- error(chopped[tpestart].word) --check
@@ -922,6 +917,10 @@ function mNIL.Translate(script,chunk)
                   vars.globals[idname]=id_dat
                   ret = ret .. idname.." = UseNIL(\""..libname.."\")\n"
                end
+            elseif "#accept" then
+               assert(chopped[2],"NT: Accept without stuff in "..track)
+               assert(chopped[2].type=="Unknown" or chopped[2].type=="Lua_identifier","NT: Invalid #accept! I cannot accept "..chopped[2].type.." in "..track)
+               accepted[chopped[2].word]=true;
             else
                error("Unexpected/unknown directive in "..track)
             end
@@ -1098,7 +1097,7 @@ function mNIL.Translate(script,chunk)
                    print(dbg("vars",vars,0),IsVar~=nil,v.type,v.word)
                 end
                 --]]
-                assert(IsVar or v.type~="Unknown","NT: Unknown term \""..v.word.."\" in "..track)
+                assert(IsVar or accepted[vword] or v.type~="Unknown","NT: Unknown term \""..v.word.."\" in "..track)
                 -- if (v.type=="Operator") then print(v.word.." > "..dbg("chopped",chopped)) end
                 -- print(dbg('v',v),"\n"..dbg('scopes',scopes))
                 if i~=1 then ret = ret .. " " end
