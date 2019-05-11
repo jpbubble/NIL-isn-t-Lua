@@ -462,6 +462,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
           (idtype=="var") or
           (idtype=="string" and type(value)=="string") or
           (idtype=="number" and type(value)=="number") or
+          (idtype=="boolean" and type(value)=="boolean") or
           (idtype=="table" and (type(value)=="table" or value==nil)) or
           (idtype=="userdata" and (type(value)=="userdata" or value==nil)) or
           (idtype=="function" and (type(value)=="function" or value==nil)) or
@@ -473,14 +474,18 @@ local function NewFromClass(classname,class, callconstructor, ...)
     function metatable.__gc(tab)
         if (trueclass.fields.DESTRUCTOR) then
            assert(trueclass.fields.DESTRUCTOR.declaredata.func and trueclass.fields.DESTRUCTOR.declaredata.idtype=="void" and (not trueclass.statics.DESTRUCTOR),"NR: Destructors may only exist as non-static 'void' functions!") 
+           allowprivate=true
            trueclass.fields.DESTRCUTOR.declaredata.func(faketable)
+           allowprivate=false
         end
     end
     
     setmetatable(faketable,metatable)
     if (callconstructor and trueclass.fields.CONSTRUCTOR) then
        assert(trueclass.fields.CONSTRUCTOR.declaredata.func and trueclass.fields.CONSTRUCTOR.declaredata.idtype=="void" and (not trueclass.statics.CONSTRUCTOR),"NR: Constructors may only exist as non-static 'void' functions!")
+       allowprivate=true
        trueclass.fields.CONSTRUCTOR.declaredata.func(faketable,...)
+       allowprivate=false
     end
     locked=true
     return faketable
@@ -1226,7 +1231,7 @@ function mNIL.Translate(script,chunk)
                        scopestart=")"
                    elseif i==1 and v.word=="case" then
                        assert(scopes[#scopes].kind=="switch" or scopes[#scopes].kind=="case","NT: Case scopes expected in "..track)
-                       if scopes[#scopes].kind=="switch" then ret = ret .. "--[[ CASE ]] if " else ret = ret .."--[[ CASE ]] elseif " vars[#scopes]=nil functions[#scopes]=nil scopes[#scopes]=nil end
+                       if scopes[#scopes].kind=="switch" then ret = ret .. " if " else ret = ret .." elseif " vars[#scopes]=nil functions[#scopes]=nil scopes[#scopes]=nil end
                        local ex 
                        for i=2,#chopped do 
                            if chopped[i].word~="" then
@@ -1239,7 +1244,7 @@ function mNIL.Translate(script,chunk)
                        newscope("case",linenumber)
                    elseif i==1 and v.word=="default" then
                        assert(scopes[#scopes].kind=="switch" or scopes[#scopes].kind=="case","NT: Case scopes expected in "..track)
-                       if scopes[#scopes].kind=="switch" then ret = ret .. "--[[ DEFAULT ]] do -- " else vars[#scopes]=nil functions[#scopes]=nil scopes[#scopes]=nil  ret = ret .."--[[ DEFAULT ]] else -- " end                   
+                       if scopes[#scopes].kind=="switch" then ret = ret .. " do -- " else vars[#scopes]=nil functions[#scopes]=nil scopes[#scopes]=nil  ret = ret .." else -- " end                   
                        newscope("default",linenumber)
                    elseif v.word=="return" then
                         local retscope = #scopes
