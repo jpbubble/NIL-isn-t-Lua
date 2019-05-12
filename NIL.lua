@@ -28,7 +28,7 @@ local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto",
                      "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"delegate","number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
-local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">",".."} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
+local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">","..",";"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
 local globusedforuse = {}
 
@@ -1110,7 +1110,7 @@ function mNIL.Translate(script,chunk)
                 if prefixed(v.word,"//") then 
                    ret = ret .. "--"..Right(v.word,#v.word-2)
                 elseif i~=1 and (v.word=='void' or v.word=='int' or v.word=='number' or v.word=='string' or v.word=='boolean' or v.word=='table' or v.word=='function' or v.word=='delegate' or v.word=="var" or classes[v.word]) then
-                       assert(chopped[i+1] and chopped[i+1].word=="(","NT: Invalid delegate definition in "..track)
+                       assert(chopped[i+1] and chopped[i+1].word=="(","NT: Invalid delegate definition in "..track.."\nWord"..i.."\t"..v.word.."\n"..getrawline)
                        local fd,fp,fa = buildfunction("",chopped,i+1,track)
                        local f = { idtype=v.word, head=fd, params=fp, assertion=fa }
                        StartFunctionScope(linenumber,f)
