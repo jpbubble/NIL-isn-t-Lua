@@ -1,6 +1,6 @@
 --[[
 ***********************************************************
-TestSwitch.lua
+TestNILModule.lua
 This particular file has been released in the public domain
 and is therefore free of any restriction. You are allowed
 to credit me as the original author, but this is not
@@ -15,8 +15,9 @@ not longer than 70 years ago, you can deem this file
 with basically comes down to the same lack of
 restriction the public domain offers. (YAY!)
 ***********************************************************
-Version 19.05.08
+Version 19.05.13
 ]]
+
 
 
 local NILCode = [[
@@ -46,6 +47,7 @@ local l = loadstring(NILTrans,"Translation")
 local tm = l().NEW()
 print(tm.a,tm.b)
 tm.Hi()
+
 
 
 
