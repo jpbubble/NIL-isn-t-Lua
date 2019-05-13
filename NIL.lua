@@ -21,6 +21,7 @@ Version 19.05.13
 
 
 
+
 -- Variables
 local macros = {["!="]="~="}
 local vars = {}
@@ -1207,7 +1208,7 @@ function mNIL.Translate(script,chunk)
                          ret = ret .. "end"
                       end
                       if scopes[scopelevel()].kind=="class" or scopes[#scopes].kind=="module" then ret = ret .. "}," end
-                   elseif (v.word=="class" or v.word=="module") and i==1 and #scopes==0 then
+                   elseif (((v.word=="class" or v.word=="module") and i==1) or (v.word=="class" and i==2 and chopped[1].word=="private") or (v.word=="private" and i==1 and chopped[2] and chopped[2].word=="class")) and #scopes==0 then
                        assert(#chopped>=2,"NT: Class or module requires definition!")
                        --newscope("class",linenumber)
                        newscope(v.word,linenumber)
@@ -1226,7 +1227,7 @@ function mNIL.Translate(script,chunk)
                        assert(not nilkeywords[cscope.classname],"NT: Classname is keyword")
                        assert(not _G[cscope.classname],"NT: Cannot use globals defined in 'pure lua' as classname")
                        classes[cscope.classname]={ name = cscope.classname }
-                       if v.word=="module" then ret = ret .. "local " end
+                       if v.word=="module" or chopped[1].word=="private" then ret = ret .. "local " end
                        ret = ret .. cscope.classname .. " = NILClass.DeclareClass('"..cscope.classname.."',{\n"
                        if v.word=="module" then modules[#modules+1] = cscope.classname end
                        break
@@ -1433,6 +1434,7 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 
 
