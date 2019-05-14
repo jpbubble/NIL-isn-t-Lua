@@ -15,8 +15,9 @@ not longer than 70 years ago, you can deem this file
 with basically comes down to the same lack of
 restriction the public domain offers. (YAY!)
 ***********************************************************
-Version 19.05.13
+Version 19.05.14
 ]]
+
 
 
 
@@ -47,6 +48,7 @@ local l = loadstring(NILTrans,"Translation")
 local tm = l().NEW()
 print(tm.a,tm.b)
 tm.Hi()
+
 
 
 

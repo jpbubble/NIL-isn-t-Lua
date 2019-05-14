@@ -16,8 +16,9 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-Version 19.05.13
+Version 19.05.14
 ]]
+
 
 
 
@@ -355,6 +356,60 @@ local function chop(amystring,pure,atrack)
   return ret
 end
 
+-- Simple serializer routine
+function mNIL.LuaSerialize(name,variable,level)
+    local LS=mNIL.LuaSerialize
+    level = level or 0
+    local function safe(str)
+       local ret= ""
+       for i=1,#str do
+           local ch = mid(str,i,1)
+           local bt = string.byte(ch) 
+           if (bt>=97 and bt<=122) or (bt>=48 and bt<=57) or (bt>=65 and bt<=90) or ch==" " or ch=="_" then ret = ret .. ch else ret = ret .. "\\"..right("00"..bt,3) end
+       end
+       return ret
+    end
+    local ret = name .. " = "
+    local tabs = ""
+    for i=1,level do tabs = tabs .. "\t" end
+    if type(variable) == "table" then
+       if getmetatable(variable) then
+          return tabs.."-- "..name.." is set with a meta table can therefore not be serialized. If it's a class, serializes it separately! --"
+       end
+       ret = ret .. "{\n"
+       local comma=false
+       for k,v in pairs(variable) do
+           if right(ret,2)=="--" then ret = ret .."\n" else
+              if comma then ret = ret .. ",\n" end
+              comma=true
+           end
+           if     type(k) == 'number' then 
+              ret = ret .. LS('['..k..']',v,level+1)
+           elseif type(k) == 'boolean' then
+              local bk = 'false'; if v then bk='true' end
+              ret = ret .. LS('['..bk..']',v,level+1)
+           elseif type(k) == 'string' then
+              ret = ret .. LS('["'..safe(k)..'"]',v,level+1)
+           else
+              error('NSL: Table with '..type(k)..' as key cannot be serialized!');
+           end
+       end
+       ret = ret .. "}"
+    elseif type(variable) == "number" then
+       ret = ret .. variable
+    elseif type(variable) == "boolean" then
+       if variable then ret = ret .. "true" else ret = ret .. "false" end
+    elseif type(variable) == 'string' then
+       ret = ret .. '"'..safe(variable)..'"'
+    elseif variable==nil then
+       ret = ret .. "nil"
+    else
+       return tabs.."-- "..name.." is a "..type(variable).." and can therefore not be serialized in any way. --"
+    end
+    return tabs..ret
+end
+local LuaSerialize=mNIL.LuaSerialize
+
 -- Stuff that NIL will need to make classes possible.
 NILClass = {}
 
@@ -403,11 +458,31 @@ local function NewFromClass(classname,class, callconstructor, ...)
        end
     end
     
+    local function Dump(nostatic)
+       local wheres = {"statics","fields"}
+       local ret = "-- Dump out class --\n\n"
+       if nostatic then wheres={"fields"} end
+       --print(LuaSerialize("THE BIG SECRET",trueclass))
+       for _,where in ipairs(wheres) do
+           for k,field in pairs(trueclass[where]) do
+               -- print(LuaSerialize('field',field))
+               if field.declaredata.ikben=="field" then 
+                  ret = ret .. LuaSerialize("self."..k,field.value).."\n"
+               end
+           end
+       end
+       return ret
+    end
+    
     function metatable.__index(tab,key)
        assert(type(key)=="string","NR: Invalid field")
+       --if key=="DUMP" then return Dump() end
        if prefixed(key,".") then
+          if key==".isnilclass" then return true end
           if key==".classname" then return class.classname end
           if key==".parent" then return class.parent end
+          if key==".dump" then return Dump(true) end
+          if key==".fulldump" then return Dump(false) end
           error("Invalid metakey")
        end
        local where = trueclass.where[key] or trueclass.where["$get."..key]
@@ -416,7 +491,10 @@ local function NewFromClass(classname,class, callconstructor, ...)
        if (trueclass.where["$get."..key]) then
           local dd = trueclass[where]["$get."..key].declaredata
           if dd.static then 
-             return dd.func()
+             allowprivate=true
+             local ret= dd.func()
+             allowprivate=false
+             return ret
           else
              return getmethod(dd.func)()
           end
@@ -436,7 +514,16 @@ local function NewFromClass(classname,class, callconstructor, ...)
     end
     
     function metatable.__newindex(tab,key,value)       
-       assert(type(key)=="string","NR: Invalid field")       
+       assert(type(key)=="string","NR: Invalid field")
+       if prefixed(key,".") then
+          if key==".dump" then
+             local l = assert((loadstring or load)("self = ... \t"..value))
+             allowprivate=true
+             l(faketable)
+             allowprivate=false
+             return
+          end
+       end
        local where = trueclass.where[key] or trueclass.where["$set."..key]
        --print(dbg("trueclass",trueclass))
        assert(where,"NR: Class has neither field nor method called "..key)
@@ -478,7 +565,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
         if (trueclass.fields.DESTRUCTOR) then
            assert(trueclass.fields.DESTRUCTOR.declaredata.func and trueclass.fields.DESTRUCTOR.declaredata.idtype=="void" and (not trueclass.statics.DESTRUCTOR),"NR: Destructors may only exist as non-static 'void' functions!") 
            allowprivate=true
-           trueclass.fields.DESTRCUTOR.declaredata.func(faketable)
+           trueclass.fields.DESTRUCTOR.declaredata.func(faketable)
            allowprivate=false
         end
     end
@@ -543,7 +630,7 @@ function NILClass.DeclareClass(name,identifiers,extends)
                     end
                   end,
         __newindex = function(t,k,v)
-                     if k=="NEW" or k=="NEWNOCONSTRUCTOR" then 
+                     if k=="NEW" or k=="NEWNOCONSTRUCTOR" or k=="DUMP" then 
                        error("NT: You cannot redefine "..k)
                      end
                        assert(statics[k],"NR: Non-static or non-existent field called from static call")
@@ -1434,6 +1521,7 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 
 
