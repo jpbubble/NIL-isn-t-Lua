@@ -70,9 +70,10 @@ although my expectation is that these situations should be rare.
 ### Is aside from some extra features the syntax exactly the same.
 
 For moest part yes.
-~~~
+~~~Lua
 for i=1,10 do print("Hi") end 
 ~~~
 Should come out the same. NIL only checks if all used identifiers are known (please note that indexes, and key variables used in for commands are declared as locals by Lua for that specific for Scope, and NIL will do the same).
 
 Typical NIL definitions, and commands require a line for themselves alone. 
+
