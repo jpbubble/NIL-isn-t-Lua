@@ -16,8 +16,9 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-Version 19.05.14
+Version 19.05.16
 ]]
+
 
 
 
@@ -625,7 +626,7 @@ function NILClass.DeclareClass(name,identifiers,extends)
                     if k=="NEW" or k=="NEWNOCONSTRUCTOR" then 
                        return function(...) return NewFromClass(name,class,k=='NEW',...) end
                     else
-                       assert(statics[k],"NR: Non-static or non-existent field called from static call")
+                       assert(statics[k],"NR: Non-static or non-existent field called from static call (g:"..k..")")
                        return forstatic[k]
                     end
                   end,
@@ -633,7 +634,7 @@ function NILClass.DeclareClass(name,identifiers,extends)
                      if k=="NEW" or k=="NEWNOCONSTRUCTOR" or k=="DUMP" then 
                        error("NT: You cannot redefine "..k)
                      end
-                       assert(statics[k],"NR: Non-static or non-existent field called from static call")
+                       assert(statics[k],"NR: Non-static or non-existent field called from static call (s:"..k..")")
                        forstatic[k]=v
                   end
     }
@@ -924,7 +925,7 @@ function mNIL.Translate(script,chunk)
                elseif idtype=="string" then 
                   default='""'
                   if pdefault then
-                    assert(pdefault.type=="string","NT: Constant string expected in "..track)
+                    assert(pdefault.type=="string","NT: Constant string expected in "..track.."\n")
                   end  
                elseif idtype=="table" then 
                   default="'createonthespot'" -- If I didn't do it this way, all tables in all variables of this class would get the same pointer, getting one big mess! 
@@ -951,6 +952,7 @@ function mNIL.Translate(script,chunk)
     
     vars.globals = vars.globals or {}
     functions.globals = functions.globals or {}
+    local purelua
     for linenumber,getrawline in itpairs(lines) do
          vars[scopelevel()] = vars[scopelevel()] or {}
          functions[scopelevel()] =  functions[scopelevel()] or {}
@@ -965,7 +967,11 @@ function mNIL.Translate(script,chunk)
          if #chopped==0 then
             -- nothing happens!
          elseif prefixed(line,"#") then
-            if chopped[1].word=="#macro" or chopped[1].word=="#localmacro" then
+            if chopped[1].word=="#pure" then
+               purelua = true
+            elseif chopped[1].word=="#endpure" then
+               purelua = false
+            elseif chopped[1].word=="#macro" or chopped[1].word=="#localmacro" then
                assert(#chopped>=3,"NT: Invalid macro defintion in "..track)
                local rest = ""
                local wmacro
@@ -1002,7 +1008,7 @@ function mNIL.Translate(script,chunk)
                   vars[#scopes]=vars[#scopes] or {}
                   vars[#scopes][idname]=id_dat
                   assert(vars[#scopes][idname],"NT: #use dupes a local identifier in "..track)
-                  ret = ret .. idname.." = UseNIL(\""..libname.."\") local "..idname.." = "..idname.."\n"                  
+                  ret = ret .. idname.." = UseNIL(\""..libname.."\") local "..idname.." = "..idname --.."\n"                  
                elseif chopped[1].word=="#localuse" then
                   vars[#scopes]=vars[#scopes] or {}
                   assert(vars[#scopes][idname],"NT: #use dupes a local identifier in "..track)
@@ -1013,13 +1019,15 @@ function mNIL.Translate(script,chunk)
                   vars.globals[idname]=id_dat
                   ret = ret .. idname.." = UseNIL(\""..libname.."\")\n"
                end
-            elseif "#accept" then
+            elseif chopped[1].word=="#accept" then
                assert(chopped[2],"NT: Accept without stuff in "..track)
                assert(chopped[2].type=="Unknown" or chopped[2].type=="Lua_identifier","NT: Invalid #accept! I cannot accept "..chopped[2].type.." in "..track)
                accepted[chopped[2].word]=true;
             else
                error("Unexpected/unknown directive in "..track)
             end
+         elseif purelua then
+             ret = ret .. getrawline
          elseif scopes[#scopes].kind=="class" or scopes[#scopes].kind=="module" then
             local scope=scopes[#scopes]
             vars[scopelevel()] = vars[scopelevel()] or {}
@@ -1107,7 +1115,7 @@ function mNIL.Translate(script,chunk)
                   default='""'
                   if pdefault then
                     -- print(pdefault.type)
-                    assert(pdefault.type=="string","NT: Constant string expected in "..track)
+                    assert(pdefault.type=="string","NT: Constant string expected in "..track.."\n"..(getrawline or ""))
                   end  
                elseif idtype=="table" then 
                   default="{}" 
@@ -1420,7 +1428,11 @@ function mNIL.Translate(script,chunk)
 end
 
 function mNIL.Load(script,chunk)
-    return loadstring(mNIL.Translate(script,chunk),"Trans: "..(chunk or "?"))
+	local translation=mNIL.Translate(script,chunk)
+	-- nildump = (nildump or -1) +1 local bt = assert(io.open("E:\\temp\\bubdebug\\NILDUMP"..nildump..".LUA","wb")) bt:write(translation .. "\n\n-- "..chunk) bt:close() -- debug must be dummied when not in use!
+    local ret,error = loadstring(translation,"Trans: "..(chunk or "?"))
+	if (not ret) and CSay then CSay("Error in translation:\n"..translation) end
+	return ret,error
 end
 
 mNIL.LoadString = mNIL.Load
@@ -1512,6 +1524,7 @@ function mNIL.Use(lib,...)
        used[ulib]=ret(...) or true
        return used[ulib]
     else
+	   -- local bt = assert(io.open("E:\\temp\\bubdebug\\NILDUMP.LUA","wb")) bt:write(script .. "\n\n-- "..letsuse) bt:close() -- debug must be dummied when not in use!
        local ret,err = loadstring(script,letsuse)
        assert(ret,"NU: Compiling Lua script failed: "..letsuse.."\n"..(err or "-- Lua error not caught properly"))
        used[ulib]=ret(...) or true
@@ -1521,6 +1534,7 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 
 
