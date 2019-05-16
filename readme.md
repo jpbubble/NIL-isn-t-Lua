@@ -38,7 +38,7 @@ updated every time a variabble/function is being defined). A few directives will
 First of all, the callbacks are done by Lua itself and not by the LOVE2D engine. In more clearer words, the callback manager for LOVE2D has been written in Lua. That alone should make it interfacable with NIL. But if you type 
 something like this:
 ~~~
-#import love
+#accept love
 love.draw = void()
     love.graphics.print("Hello World",10,10)
 end
