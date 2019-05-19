@@ -782,6 +782,7 @@ function mNIL.Translate(script,chunk)
           local scope = scopes[#scopes]
           scope.func = func
           scope.idtype = func.idtype
+		  scope.line = line
           vars[#scopes] = {}
           for _,p in ipairs(func.params) do
               --print(#scopes,p,_)
@@ -1414,7 +1415,7 @@ function mNIL.Translate(script,chunk)
     end
     if scopelevel()~=0 then
        error(
-         sprintf("NT: %s-scope in line #%d not properly ended, yet the end of the chunk has been reached in %s",scopes[#scopes].kind,scopes[#scopes].line,chunk or "The chunk without a name")
+         sprintf("NT: %s-scope in line #%d not properly ended, yet the end of the chunk has been reached in %s",scopes[#scopes].kind,scopes[#scopes].line or 0,chunk or "The chunk without a name")
        )
     end
     if #modules>0 then
