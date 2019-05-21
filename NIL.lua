@@ -16,8 +16,9 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-Version 19.05.20
+Version 19.05.21
 ]]
+
 
 
 
@@ -698,9 +699,11 @@ function mNIL.Translate(script,chunk)
           local params = {}
           local assertion
           local wantass = ""
+		  local gotass = ""
           local i = tpestart+1
-          local function addassert(a,wa)
+          local function addassert(a,wa,ga)
              if wantass~="" then wantass=wantass..", " end wantass=wantass..wa 
+			 if gotass~="" then gotass=gotass.."..', '.." end gotass=gotass..ga
              if not a then return end
              if assertion then
                 assertion = assertion.." and "..a
@@ -716,43 +719,43 @@ function mNIL.Translate(script,chunk)
              local w = chopped[i].word
              local nw = chopped[i+1].word
              if w.word=="var" then -- optional, but implemented in case people don't realize it! ^_^
-                addassert(nil,"var")
+                addassert(nil,"var","type("..nw..")")
                 params[#params+1]=nw
                 chopped[i+1].type="Function Parameter"
                 i = i + 2 
              elseif w=="string" then
                 params[#params+1]=nw
-                addassert( "type("..nw..")=='string'","string")
+                addassert( "type("..nw..")=='string'","string","type("..nw..")")
                 chopped[i+1].type="Function Parameter"
                 i = i + 2
              elseif w=="int" or w=="number" then
                 params[#params+1]=nw
-                addassert( "type("..nw..")=='number'","number")
+                addassert( "type("..nw..")=='number'","number","type("..nw..")")
                 chopped[i+1].type="Function Parameter"
                 i = i + 2
              elseif w=="bool" or w=="boolean" then
                 params[#params+1]=nw
-                addassert("type("..nw..")=='boolean'","boolean")
+                addassert("type("..nw..")=='boolean'","boolean","type("..nw..")")
                 chopped[i+1].type="Function Parameter"
                 i = i + 2
              elseif w=="table" then
                 params[#params+1]=nw
-                addassert( "(nw==nil or type(nw)=='table')","table")
+                addassert( "(nw==nil or type(nw)=='table')","table","type("..nw..")")
                 chopped[i+1].type="Function Parameter"
                 i = i + 2
              elseif w=="userdata" then
                 params[#params+1]=nw
-                addassert( "("..nw.."==nil or type("..nw..")=='userdata')","userdata")
+                addassert( "("..nw.."==nil or type("..nw..")=='userdata')","userdata","type("..nw..")")
                 chopped[i+1].type="Function Parameter"
                 i = i + 2
              elseif w=="function" or w=="delegate" then
                 params[#params+1]=nw
-                addassert( "("..nw.."==nil or type("..nw..")=='function')","function")
+                addassert( "("..nw.."==nil or type("..nw..")=='function')","function","type("..nw..")")
                 chopped[i+1].type="Function Parameter"
                 i = i + 2
              elseif classes[w] then
                 params[#params+1]=nw
-                addassert( "("..nw.."==nil or (type("..nw..")=='table' and "..nw.."._NIL_class='"..w.."')",w)
+                addassert( "("..nw.."==nil or (type("..nw..")=='table' and "..nw.."._NIL_class='"..w.."')",w,"<?>")
                 chopped[i+1].type="Function Parameter"
                 i = i + 2
              else
@@ -774,11 +777,11 @@ function mNIL.Translate(script,chunk)
               ret = ret .. p
           end
           ret = ret ..")"
-          return ret,params,assertion
+          return ret,params,assertion,wantass,gotass
     end
     local function StartFunctionScope(line,func,id)
           ret = ret .. "function "..(id or "")..func.head
-          if func.assertion then ret = ret .." assert("..func.assertion..",'NR: Function did not receive the parameters the way it wanted!')" end
+          if func.assertion then ret = ret .." assert("..func.assertion..",'NR: Function did not receive the parameters the way it wanted!\\n\\tWant:"..(func.wantass or "?") .."\\n\\tGot: \\t'.."..(func.gotass or "'?'")..")" end
           newscope("function",line)
           local scope = scopes[#scopes]
           scope.func = func
@@ -896,8 +899,8 @@ function mNIL.Translate(script,chunk)
                        chopped[#chopped-1].word==")"
                ),"NT: Incomplete function declaration")
                -- print(dbg('chopped',chopped))
-               local fd,fp,fa = buildfunction(id,chopped,tpestart+2,track,not dostatic)
-               functions[wscope][id] = { idtype=idtype, head=fd, params=fp, assertion=fa }
+               local fd,fp,fa,wa,ga = buildfunction(id,chopped,tpestart+2,track,not dostatic)
+               functions[wscope][id] = { idtype=idtype, head=fd, params=fp, assertion=fa, wantass=wa, gotass=ga }
                -- print(dbg('functions',functions))
                assert(not doreadonly,"The keyword 'readonly' is not valid for methods")
                ret = ret .. "\t['"..id.."'] = { ikben='method', idtype='"..idtype.."', name='"..id.."', static="..blst[dostatic]..", private="..blst[doprivate or prefixed(id,"_")]..", "
@@ -1088,8 +1091,8 @@ function mNIL.Translate(script,chunk)
                        chopped[#chopped-1].word==")"
                ),"NT: Incomplete function declaration")
                -- print(dbg('chopped',chopped))
-               local fd,fp,fa = buildfunction(id,chopped,tpestart+2,track)
-               functions[wscope][id] = { idtype=idtype, head=fd, params=fp, assertion=fa }
+               local fd,fp,fa,wa,ga = buildfunction(id,chopped,tpestart+2,track)
+               functions[wscope][id] = { idtype=idtype, head=fd, params=fp, assertion=fa, wantass=wa, gotass=ga }
                -- print(dbg('functions',functions))
                if not doglobal then ret = ret .. "local " end
                if doforward then 
@@ -1193,6 +1196,8 @@ function mNIL.Translate(script,chunk)
                 local IsVar = vars.globals[vword] or functions.globals[vword] or classes[vword] or _G[vword]
                 for i=0,scopelevel() do 
                     --print('scope #'..i.."/"..#scopes)
+					vars[i]=vars[i] or {}
+					functions[i]=functions[i] or {}
                     IsVar = IsVar or 
                          vars[i][vword] or 
                          functions[i][vword] 
@@ -1211,8 +1216,8 @@ function mNIL.Translate(script,chunk)
                    ret = ret .. "--"..Right(v.word,#v.word-2)
                 elseif i~=1 and (v.word=='void' or v.word=='int' or v.word=='number' or v.word=='string' or v.word=='boolean' or v.word=='table' or v.word=='function' or v.word=='delegate' or v.word=="var" or classes[v.word]) then
                        assert(chopped[i+1] and chopped[i+1].word=="(","NT: Invalid delegate definition in "..track.."\nWord"..i.."\t"..v.word.."\n"..getrawline)
-                       local fd,fp,fa = buildfunction("",chopped,i+1,track)
-                       local f = { idtype=v.word, head=fd, params=fp, assertion=fa }
+                       local fd,fp,fa,wa,ga = buildfunction("",chopped,i+1,track)
+                       local f = { idtype=v.word, head=fd, params=fp, assertion=fa, wantass=wa, gotass=ga }
                        StartFunctionScope(linenumber,f)
                        IgnoreUntil=")"
                        --error("DEBUG -- operation in progress!")
@@ -1536,6 +1541,7 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 
 
