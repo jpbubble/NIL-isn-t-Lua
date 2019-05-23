@@ -16,8 +16,9 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-Version 19.05.21
+Version 19.05.23
 ]]
+
 
 
 
@@ -287,7 +288,7 @@ local function chop(amystring,pure,atrack)
             gword=c
          end
          openstring=c
-      elseif (c=='"' or c=="'") and openstring==c then 
+      elseif (c=='"' or c=="'") and openstring==c and i>1 and mid(mystring,i-1,1)~="\\" then 
          if (left(gword,1)~=c) then gword=c..gword end
          chopped[#chopped+1]=gword..c
          gword=""
@@ -520,7 +521,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
        assert(type(key)=="string","NR: Invalid field")
        if prefixed(key,".") then
           if key==".dump" then
-             local l = assert((loadstring or load)("self = ... \t"..value))
+             local l = assert((loadstring or load)("self = ... \t"..value,"Parsing Class Dump"))
              allowprivate=true
              l(faketable)
              allowprivate=false
@@ -1541,6 +1542,7 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 
 

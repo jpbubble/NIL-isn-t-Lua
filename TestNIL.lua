@@ -15,8 +15,9 @@ not longer than 70 years ago, you can deem this file
 with basically comes down to the same lack of
 restriction the public domain offers. (YAY!)
 ***********************************************************
-Version 19.05.06
+Version 19.05.23
 ]]
+
 
 
 
@@ -73,8 +74,10 @@ local NILCode = [[
     boolean b2 = false
     bool b3
     // print(localint) // should cause an error if not set as a comment!
+    print("Let's say \"Hello World\" again!")
 ]]
 local NILTrans = NIL.Translate(NILCode,"NILCode")
 
 print("Original:\n"..NILCode,"\n\nTranslation:\n"..NILTrans)
+
 
