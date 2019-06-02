@@ -15,8 +15,7 @@ turned into a macro. I am NOT planning (like C does) to allow macros to have par
 - I miss the "switch" statement, so NIL will definitely support it!
 - Now in Lua every variable is a global unless specifically declared as a local. For NIL I'm planning to work the other way around. First of all, locals are faster than globals in Lua, and second many programming teachers will 
 teach you to avoid using globals as much as possible, so I guess it only makes sense to go for locals by default.
-- Lua has no official support for classes. On this moment we can fool around with tables and maybe even metatables, but a real class environement is not yet there. The first versions of NIL will not yet support this, but if you can 
-help me on this, that'd be great.
+- Lua has no official support for classes. On this moment we can fool around with tables and maybe even metatables, but a real class environement is not yet there. NIL has its own class system and will integrate this with Lua. 
 
 Originally NIL has been developed as part of the "BUBBLE" project, but I've decided to make this as little reliant on BUBBLE as possible, so other Lua engines (such as LOVE2D, or if you want World of Warcraft addons and so on) can 
 also benefit here, so as much "pure Lua" to create NIL in as possible. This will mean that a few features BUBBLE will support won't be supported on other engines, I guess this cannot be avoided. The "#use" directive will be the 
