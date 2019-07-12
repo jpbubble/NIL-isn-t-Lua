@@ -63,6 +63,8 @@ local replace = string.gsub
 local ASC=string.byte
 local sprintf = string.format
 
+mNIL.SayFuncs = {}
+
 
 local function dbg(myvarname,myvar,level)
        local ret = ""
@@ -995,6 +997,11 @@ function mNIL.Translate(script,chunk)
                s = s:upper()
                allowrepeatend = s~="NO" and s~="FALSE" and s~="OFF"
                ret = ret .. "--[[ Autosetting changed ]]"
+			elseif chopped[1].word=="#say" then
+			   for _,f in ipairs(mNIL.SayFuncs) do
+			       f(ch2string(chopped[2]))
+				end
+				ret = ret .. "-- Say: "..ch2string(chopped[2]).." --"
             elseif chopped[1].word=="#use" or chopped[1].word=="#globaluse" or chopped[1].word=="#localuse" then
                assert(chopped[2],"NT: #use/#localuse/#globaluse expects a library/module in "..track)
                local libname = ch2string(chopped[2])
@@ -1018,12 +1025,12 @@ function mNIL.Translate(script,chunk)
                elseif chopped[1].word=="#localuse" then
                   vars[#scopes]=vars[#scopes] or {}
                   assert(vars[#scopes][idname],"NT: #use dupes a local identifier in "..track)
-                  ret = ret .. "local "..idname.." = UseNIL(\""..libname.."\")\n"
+                  ret = ret .. "local "..idname.." = UseNIL(\""..libname.."\")"
                elseif chopped[1].word=="#globaluse" then
                   assert(globusedforuse[idname] or (not vars.globals[idname]),"NT: #use request leads to duping identifier in "..track)
                   globusedforuse[idname]=true
                   vars.globals[idname]=id_dat
-                  ret = ret .. idname.." = UseNIL(\""..libname.."\")\n"
+                  ret = ret .. idname.." = UseNIL(\""..libname.."\")"
                end
             elseif chopped[1].word=="#accept" then
                assert(chopped[2],"NT: Accept without stuff in "..track)
