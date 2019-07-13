@@ -16,8 +16,9 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-Version 19.05.23
+Version 19.07.13
 ]]
+
 
 
 
@@ -33,7 +34,7 @@ local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto",
-                     "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set","module"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
+                     "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set","module","new"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"delegate","number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">","..",";"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
@@ -630,7 +631,7 @@ function NILClass.DeclareClass(name,identifiers,extends)
         __index = function(t,k)
                     if k=="NEW" or k=="NEWNOCONSTRUCTOR" then 					   
                        return function(...) 
-					    -- print("WARNING! The \".NEW()\" method to create new classes has been deprecated as of version 19.07.13, and may be removed in version 21.xx.xx or somewhere later.")
+					    if k=="NEW" then print("WARNING! The \".NEW()\" method to create new classes has been deprecated as of version 19.07.13, and may be removed in version 21.xx.xx or somewhere later.") end
 					    return NewFromClass(name,class,k=='NEW',...) 
 					   end
                     else
@@ -646,7 +647,7 @@ function NILClass.DeclareClass(name,identifiers,extends)
                        forstatic[k]=v
                   end,
 		__call = function(t,...)
-			return NewFromClass(name,class,k=='NEW',...) 
+			return NewFromClass(name,class,true,...) 
 		end
     }
     setmetatable(ret,meta)
@@ -1228,6 +1229,9 @@ function mNIL.Translate(script,chunk)
                 if i~=1 then ret = ret .. " " end
                 if prefixed(v.word,"//") then 
                    ret = ret .. "--"..Right(v.word,#v.word-2)
+				elseif i~=1 and classes[v.word] and chopped[i-1].word=="new" then
+				    ret = ret .. v.word;
+					if i>=#chopped or chopped[i+1].word~="(" then ret = ret .. "()" end
                 elseif i~=1 and (v.word=='void' or v.word=='int' or v.word=='number' or v.word=='string' or v.word=='boolean' or v.word=='table' or v.word=='function' or v.word=='delegate' or v.word=="var" or classes[v.word]) then
                        assert(chopped[i+1] and chopped[i+1].word=="(","NT: Invalid delegate definition in "..track.."\nWord"..i.."\t"..v.word.."\n"..getrawline)
                        local fd,fp,fa,wa,ga = buildfunction("",chopped,i+1,track)
@@ -1261,11 +1265,14 @@ function mNIL.Translate(script,chunk)
                       newscope("while",linenumber)
                       scopestart="do"
                    elseif v.word=="else" then
-                      assert(scopes[#scopes].kind=="if" or scopes[#scopes]=="elseif","NT: 'elseif' can only be used in connection with an 'if'/'elseif' scope in "..track)
+                      assert(scopes[#scopes].kind=="if" or scopes[#scopes]=="elseif",("NT: 'else' can only be used in connection with an 'if'/'elseif' scope (and not in an '%s' scope) in %s"):format(scopes[#scopes].kind,track))
                       ret = ret .. " else "
                       vars[#scopes] = nil
                       scopes[#scopes] = nil
                       newscope("else",linenumber)
+				   elseif v.word=="new" then
+				      if i>=#chopped then error("new without class") end
+					  assert(classes[chopped[i+1].word],chopped[i+1].word.." is not a class");
                    elseif v.word=="repeat" then
                       ret = ret .. " repeat "
                       newscope("repeat",linenumber)
@@ -1498,7 +1505,7 @@ class NIL_BASIC_USE
     
 end
 
-return NIL_BASIC_USE.NEW()
+return new NIL_BASIC_USE()
 
 ]],"Default Use Script")
 -- print(UseStuffScript) -- debug
@@ -1555,6 +1562,7 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 
 
