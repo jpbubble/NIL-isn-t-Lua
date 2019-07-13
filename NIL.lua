@@ -628,8 +628,11 @@ function NILClass.DeclareClass(name,identifiers,extends)
     local ret = {}
     local meta = {
         __index = function(t,k)
-                    if k=="NEW" or k=="NEWNOCONSTRUCTOR" then 
-                       return function(...) return NewFromClass(name,class,k=='NEW',...) end
+                    if k=="NEW" or k=="NEWNOCONSTRUCTOR" then 					   
+                       return function(...) 
+					    -- print("WARNING! The \".NEW()\" method to create new classes has been deprecated as of version 19.07.13, and may be removed in version 21.xx.xx or somewhere later.")
+					    return NewFromClass(name,class,k=='NEW',...) 
+					   end
                     else
                        assert(statics[k],"NR: Non-static or non-existent field called from static call (g:"..k..")")
                        return forstatic[k]
@@ -641,7 +644,10 @@ function NILClass.DeclareClass(name,identifiers,extends)
                      end
                        assert(statics[k],"NR: Non-static or non-existent field called from static call (s:"..k..")")
                        forstatic[k]=v
-                  end
+                  end,
+		__call = function(t,...)
+			return NewFromClass(name,class,k=='NEW',...) 
+		end
     }
     setmetatable(ret,meta)
     forstatic = ret.NEWNOCONSTRUCTOR()
