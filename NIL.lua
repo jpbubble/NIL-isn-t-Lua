@@ -20,20 +20,12 @@ Version 19.07.13
 ]]
 
 
-
-
-
-
-
-
-
-
 -- Variables
 local macros = {["!="]="~="}
 local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
-local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto",
+local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto","group",
                      "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set","module","new"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"delegate","number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">","..",";"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
@@ -1048,7 +1040,7 @@ function mNIL.Translate(script,chunk)
             end
          elseif purelua then
              ret = ret .. getrawline
-         elseif scopes[#scopes].kind=="class" or scopes[#scopes].kind=="module" then
+         elseif scopes[#scopes].kind=="class" or scopes[#scopes].kind=="module" or scopes[#scopes].kind=="group" then
             local scope=scopes[#scopes]
             vars[scopelevel()] = vars[scopelevel()] or {}
             functions[scopelevel()] =  functions[scopelevel()] or {}
@@ -1056,6 +1048,10 @@ function mNIL.Translate(script,chunk)
                ret = ret .. "}"
                if scope.extends then ret = ret .. ","..scope.extends end
                ret = ret .. ")"
+               if scope.kind=="group" then
+					if not scope.group_global then ret = ret .. " local " end
+					ret = ret .. scope.group_name .. " = NIL__GROUP__"..scope.group_name.."() "
+               end
                vars[#scopes]=nil
                functions[#scopes]=nil
                scopes[#scopes]=nil
@@ -1330,9 +1326,9 @@ function mNIL.Translate(script,chunk)
                          scopes[scopelevel()] = nil
                          ret = ret .. "end"
                       end
-                      if scopes[scopelevel()].kind=="class" or scopes[#scopes].kind=="module" then ret = ret .. "}," end
-                   elseif (((v.word=="class" or v.word=="module") and i==1) or (v.word=="class" and i==2 and chopped[1].word=="private") or (v.word=="private" and i==1 and chopped[2] and chopped[2].word=="class")) and #scopes==0 then
-                       assert(#chopped>=2,"NT: Class or module requires definition!")
+                      if scopes[scopelevel()].kind=="class" or scopes[#scopes].kind=="module" or scopes[#scopes].kind=="group" then ret = ret .. "}," end
+                   elseif (((v.word=="class" or v.word=="module" or v.word=="group") and i==1) or (v.word=="class" and i==2 and chopped[1].word=="private") or (v.word=="private" and i==1 and chopped[2] and (chopped[2].word=="class" or chopped[2].word=="group"))) and #scopes==0 then
+                       assert(#chopped>=2,"NT: Class, group or module requires definition!")
                        --newscope("class",linenumber)
                        newscope(v.word,linenumber)
                        local cscope = scopes[#scopes]
@@ -1350,8 +1346,15 @@ function mNIL.Translate(script,chunk)
                        assert(not nilkeywords[cscope.classname],"NT: Classname is keyword")
                        assert(not _G[cscope.classname],"NT: Cannot use globals defined in 'pure lua' as classname")
                        classes[cscope.classname]={ name = cscope.classname }
-                       if v.word=="module" or chopped[1].word=="private" then ret = ret .. "local " end
-                       ret = ret .. cscope.classname .. " = NILClass.DeclareClass('"..cscope.classname.."',{\n"
+                       if v.word=="module" or v.word=="group" or chopped[1].word=="private" then ret = ret .. "local " end -- Please note that groups have a 'fake class' only used to define it, but that fake class may not mix in the 'real code'                      
+                       if (v.word=="group") then
+                           cscope.group_name=cscope.classname
+                           cscope.group_global=chopped[1].word~="private"
+                           ret = ret .. "NIL__GROUP__"..cscope.group_name.." = NILClass.DeclareClass('"..cscope.classname.."',{\n"
+                       else
+                           ret = ret .. cscope.classname .. " = NILClass.DeclareClass('"..cscope.classname.."',{\n"
+                       end
+                       
                        if v.word=="module" then modules[#modules+1] = cscope.classname end
                        break
                    elseif i==1 and v.word=="switch" then
@@ -1395,7 +1398,8 @@ function mNIL.Translate(script,chunk)
                              ret = ret .. "return;"  -- This will enforce an error if people try to return values through a void, and if not an error, the value will be ignored, either way, this blocks voids from returning values! :P
                           elseif func.idtype=="var" then
                              ret = ret .. "return " -- anything goes with 'var', yes even multiple returns.
-                          elseif func.idtype=="number" then
+                          elseif func.idtype=="number" or func.idtype=="int" then
+						    func.idtype = "number"
                             if i==#chopped then
                                 ret = ret .. "return 0"
                              else

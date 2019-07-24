@@ -1,0 +1,11 @@
+group TestMe
+
+	int i = 2019
+	
+	void Hello()
+		print("Hello World")
+		print(TestMe.i)
+	end
+end
+
+TestMe.Hello()
