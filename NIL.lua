@@ -963,7 +963,7 @@ function mNIL.Translate(script,chunk)
     for linenumber,getrawline in itpairs(lines) do
          vars[scopelevel()] = vars[scopelevel()] or {}
          functions[scopelevel()] =  functions[scopelevel()] or {}
-         local track = "line #"..linenumber.. "; chunk: "..(chunk or 'He-Who-Must-Not-Be-Name')
+         local track = "line #"..linenumber.. "; chunk: "..(chunk or 'He-Who-Must-Not-Be-Named')
          local line = getrawline
          -- Let's first see what macros we have
          for _,m in ipairs(amacro) do for mak,rep in spairs(m) do
