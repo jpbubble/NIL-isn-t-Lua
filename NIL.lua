@@ -971,6 +971,31 @@ function mNIL.Translate(script,chunk)
          end end
          -- Let's chop the line up, shall we?
          local chopped = chop(line,false,track)
+
+		-- c++ and c --
+         if #chopped>=3 and chopped[1].word=="+" and chopped[2].word=="+" and (not purelua) then
+			local chmod = "";
+			for i=3,#chopped do chmod = chmod .. chopped[i].word end
+			line = chmod .. " = "..chmod.." + 1"
+			chopped = chop(line,false,track)
+         elseif #chopped>=3 and chopped[#chopped-1].word=="+" and chopped[#chopped-2].word=="+" and (not purelua) then
+			local chmod = "";
+			for i=1,#chopped-3 do chmod = chmod .. chopped[i].word end
+			line = chmod .. " = "..chmod.." + 1"
+			chopped = chop(line,false,track)
+         elseif #chopped>=3 and chopped[1].word=="-" and chopped[2].word=="-" and (not purelua) then
+			local chmod = "";
+			for i=3,#chopped do chmod = chmod .. chopped[i].word end
+			line = chmod .. " = "..chmod.." + 1"
+			chopped = chop(line,false,track)
+         elseif #chopped>=3 and chopped[#chopped-1].word=="-" and chopped[#chopped-2].word=="-" and (not purelua) then
+			local chmod = "";
+			for i=1,#chopped-3 do chmod = chmod .. chopped[i].word end
+			line = chmod .. " = "..chmod.." + 1"
+			chopped = chop(line,false,track)
+		end
+
+
          if #chopped==0 then
             -- nothing happens!
          elseif prefixed(line,"#") then
