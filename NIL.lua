@@ -948,6 +948,10 @@ function mNIL.Translate(script,chunk)
                   if pdefault then
                      error("NT: Direct, declare and define is not yet supported for variants in "..track)
                   end
+               elseif idtype=="delegate" or idtype=="function" then
+                  if pdefault then
+                     error("NT: Direct, declare and define is not yet supported for delegats/functions in "..track)
+                  end
                else
                   error("NT: Type not yet supported in "..track)
                end
@@ -1450,7 +1454,7 @@ function mNIL.Translate(script,chunk)
                              end
                           elseif func.idtype=="var" then
                              ret = ret .. "return "
-                          elseif func.idtype=="function" then
+                          elseif func.idtype=="function" or func.idtype=="delegate" then
                              ret = ret .. "return "
                           else
                                  error("NT: Current setup cannot return in this kind of function yet! -- "..(func.idtype or "none set").." -- "..track)
