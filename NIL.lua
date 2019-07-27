@@ -27,7 +27,7 @@ local functions = {}
 local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto","group",
                      "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set","module","new"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
-local nilkeywords = {"delegate","number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
+local nilkeywords = {"delegate","number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean","link"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">","..",";"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
 local globusedforuse = {}
@@ -808,6 +808,7 @@ function mNIL.Translate(script,chunk)
             local default = "nil"
             local wscope = #scopes
             local fields = {}
+			local islink
             local blst = { [true]="true", [false]="false"}
             if prefixed(chopped[1].word,"//") then ret = ret .. "-- comment line!" return end
             do local getout repeat
@@ -824,15 +825,19 @@ function mNIL.Translate(script,chunk)
                   doget=true getout=false tpestart = tpestart + 1
                elseif chopped[tpestart].word=="set" then
                   doset=true getout=false tpestart = tpestart + 1
+               elseif chopped[tpestart].word=="link" then
+			      islink=true getout=true tpestart = tpestart + 1
                end
             until getout end
-            assert( chopped[tpestart].type=="NILKeyword" , "NT: declaration syntax error (Unexpected "..chopped[tpestart].type..">"..chopped[tpestart].word.." in "..track )
+			assert(not (islink and (doget or doset or doreadonly or doabstract or dostatic)),"Invalid link definition!")
+            assert( chopped[tpestart].type=="NILKeyword" or islink, "NT: declaration syntax error (Unexpected "..chopped[tpestart].type..">"..chopped[tpestart].word.." in "..track )
             idtype=chopped[tpestart].word
             --assert(idtype~="class","NT: Classes have not yet been supported! "..track)
             if idtypes[idtype] then idtype=idtypes[idtype] end
             id = chopped[tpestart+1].word
+			if islink then id=chopped[tpestart].word end
             assert(id,"NT: Incomplete declaration")
-            assert(chopped[tpestart+1].type=="Unknown","NT: Identifier name ("..chopped[tpestart+1].word..") seems known as a "..chopped[tpestart+1].type.." in "..track)
+            assert(chopped[tpestart+1].type=="Unknown" or (islink and chopped[tpestart].type=="Unknown"),"NT: Identifier name ("..chopped[tpestart+1].word..") seems known as a "..chopped[tpestart+1].type.." in "..track)
             assert(ValidForIdentifier(id),"NT: \""..id.."\" is not a valid identifier in "..track)
             do
                local getset
@@ -843,7 +848,13 @@ function mNIL.Translate(script,chunk)
                     fields[id] or getset
                   ),"NT: Duplicate field identifier \""..id.."\" in "..track)
             end
-            if (doget) then
+			if (islink) then
+				print(tpestart,chopped[tpestart+1],chopped[tpestart+1].word) -- debug
+				assert(chopped[tpestart+1] and chopped[tpestart+1].word=="=" and chopped[tpestart+2],"Link needs link data to link to");
+			    ret = ret .. "\t['$get."..id.."'] = { ikben='get', idtype='var', name='"..id.."', static=true, private="..blst[doprivate or prefixed(id,"_")]..", func=function() return "..chopped[tpestart+2].word.." end },\t"
+				ret = ret .. "\t['$set."..id.."'] = { ikben='set', idtype='void', name='"..id.."', static=true, private="..blst[doprivate or prefixed(id,"_")]..", func=function(value) "..chopped[tpestart+2].word.." = value end }\t"
+				idtype="var"
+            elseif (doget) then
                 local this=''                
                 if not dostatic then
                    this='self'
@@ -953,7 +964,7 @@ function mNIL.Translate(script,chunk)
                      error("NT: Direct, declare and define is not yet supported for delegats/functions in "..track)
                   end
                else
-                  error("NT: Type not yet supported in "..track)
+                  error("NT: Type \""..idtype.."\" not yet supported in "..track)
                end
                ret = ret .. "\t['"..id.."'] = { ikben='field', idtype='".. idtype.."', name='"..id.."', default= "..(psdefault or default)..", static="..blst[dostatic]..", readonly="..blst[doreadonly]..", private="..blst[doprivate or prefixed(id,"_")].."},"
                fields[id]=true
