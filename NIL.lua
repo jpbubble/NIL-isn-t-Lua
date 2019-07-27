@@ -837,7 +837,11 @@ function mNIL.Translate(script,chunk)
             id = chopped[tpestart+1].word
 			if islink then id=chopped[tpestart].word end
             assert(id,"NT: Incomplete declaration")
-            assert(chopped[tpestart+1].type=="Unknown" or (islink and chopped[tpestart].type=="Unknown"),"NT: Identifier name ("..chopped[tpestart+1].word..") seems known as a "..chopped[tpestart+1].type.." in "..track)
+			if islink then
+				assert(chopped[tpestart  ].type=="Unknown" or chopped[tpestart  ].type=="Lua_identifier","NT: Identifier name for link ("..chopped[tpestart].word..") seems known as a "..chopped[tpestart].type.." in "..track)
+			else
+				assert(chopped[tpestart+1].type=="Unknown" or chopped[tpestart+1].type=="Lua_identifier","NT: Identifier name ("..chopped[tpestart+1].word..") seems known as a "..chopped[tpestart+1].type.." in "..track)
+			end
             assert(ValidForIdentifier(id),"NT: \""..id.."\" is not a valid identifier in "..track)
             do
                local getset
@@ -852,7 +856,7 @@ function mNIL.Translate(script,chunk)
 				print(tpestart,chopped[tpestart+1],chopped[tpestart+1].word) -- debug
 				assert(chopped[tpestart+1] and chopped[tpestart+1].word=="=" and chopped[tpestart+2],"Link needs link data to link to");
 			    ret = ret .. "\t['$get."..id.."'] = { ikben='get', idtype='var', name='"..id.."', static=true, private="..blst[doprivate or prefixed(id,"_")]..", func=function() return "..chopped[tpestart+2].word.." end },\t"
-				ret = ret .. "\t['$set."..id.."'] = { ikben='set', idtype='void', name='"..id.."', static=true, private="..blst[doprivate or prefixed(id,"_")]..", func=function(value) "..chopped[tpestart+2].word.." = value end }\t"
+				ret = ret .. "\t['$set."..id.."'] = { ikben='set', idtype='void', name='"..id.."', static=true, private="..blst[doprivate or prefixed(id,"_")]..", func=function(value) "..chopped[tpestart+2].word.." = value end },\t"
 				idtype="var"
             elseif (doget) then
                 local this=''                
