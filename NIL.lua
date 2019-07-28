@@ -25,7 +25,7 @@ local macros = {["!="]="~="}
 local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
-local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto","group",
+local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto","group","infinity",
                      "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set","module","new"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"delegate","number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean","link"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">","..",";"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
@@ -482,6 +482,10 @@ local function NewFromClass(classname,class, callconstructor, ...)
           if key==".parent" then return class.parent end
           if key==".dump" then return Dump(true) end
           if key==".fulldump" then return Dump(false) end
+		  if key==".hasmember" then
+		     local w = trueclass.where[key] or trueclass.where["$get."..key]
+			 return w~=nil and w~=false
+	      end
           error("Invalid metakey")
        end
        local where = trueclass.where[key] or trueclass.where["$get."..key]
@@ -760,6 +764,9 @@ function mNIL.Translate(script,chunk)
                 addassert( "("..nw.."==nil or (type("..nw..")=='table' and "..nw.."._NIL_class='"..w.."')",w,"<?>")
                 chopped[i+1].type="Function Parameter"
                 i = i + 2
+             elseif w=="infinity" then
+			    params[#params+1]="..."
+				i = i + 1
              else
                 params[#params+1]=w
                 chopped[i].type="Function Parameter"
@@ -772,9 +779,9 @@ function mNIL.Translate(script,chunk)
           end          
           local ret = "("
           for i,p in ipairs(params) do
-              if p~="self" or i>1 then if tcontains(nilkeywords,p) or tcontains(luakeywords,p) then error("NT: Unexpected keyword '"..p.."' in "..track) end end
+              if (p~="self" and p~="infinity") or i>1 then if tcontains(nilkeywords,p) or tcontains(luakeywords,p) then error("NT: Unexpected keyword '"..p.."' in "..track) end end
               if tcontains(operators,p) then error("NT: Unexpected operator '"..p.."' in "..track) end
-              assert(ValidForIdentifier(p),"NT: Invalid identifier name '"..p.."' in "..track) 
+              assert(p=="..." or ValidForIdentifier(p),"NT: Invalid identifier name '"..p.."' in "..track) 
               if i>1 then ret = ret ..", " end
               ret = ret .. p
           end
@@ -1320,6 +1327,8 @@ function mNIL.Translate(script,chunk)
                       ret = ret .. " until false "
                       vars[#scopes] = nil
                       scopes[#scopes] = nil
+				   elseif v.word=="infinity" then 
+				       ret = ret .. " ... "
                    elseif v.word=="until" then
                       ret = ret .. " until "
                       vars[#scopes] = nil
