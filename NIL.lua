@@ -483,8 +483,10 @@ local function NewFromClass(classname,class, callconstructor, ...)
           if key==".dump" then return Dump(true) end
           if key==".fulldump" then return Dump(false) end
 		  if key==".hasmember" then
-		     local w = trueclass.where[key] or trueclass.where["$get."..key]
-			 return w~=nil and w~=false
+		     return function(member)
+		       local w = trueclass.where[member] or trueclass.where["$get."..member]
+			   return w~=nil and w~=false
+			 end
 	      end
           error("Invalid metakey")
        end
@@ -1387,8 +1389,8 @@ function mNIL.Translate(script,chunk)
                        local cscope = scopes[#scopes]
                        cscope.classname = chopped[2].word
                        if (#chopped>=3) then
-                          assert(chopped[3].word=="extends","NT: Extends expected")
-                          assert(#chopped==4,"NT: class to extend from expected")
+                          assert(chopped[3].word=="extends","NT: Extends expected in "..track)
+                          assert(#chopped==4,"NT: class to extend from expected in "..track)
                           cscope.extends = chopped[4].word
                        end
                        if cscope.extends then assert(classes[cscope.extends],"NT: Extend request from non-existent class in "..track) end
