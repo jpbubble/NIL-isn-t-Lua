@@ -28,7 +28,7 @@ local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto","group","infinity",
                      "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set","module","new"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"delegate","number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean","link"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
-local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">","..",";"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
+local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">","..",";","^"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
 local globusedforuse = {}
 
@@ -58,6 +58,32 @@ local sprintf = string.format
 
 mNIL.SayFuncs = {}
 
+local realerror = error
+local realassert = assert
+
+local function NILError(err)
+	print(err)
+	print(debug.traceback)
+	error("FAIL: "..err)
+end
+
+mNIL.Error = NILError
+
+
+error = function(myerror)
+	(mNIL.Error or NILError)(myerror)
+end
+
+
+function full_assert(condition,errmsg)
+	assert(condition,errmsg.."\n\n"..debug.traceback())
+end
+
+-- Technically the the "real" assert does, but now this routine can take it over if needed, as the "real" assert would always use Lua's internal error features.
+assert = function(condition,merror)
+	if not condition then error(merror) end
+	return condition
+end
 
 local function dbg(myvarname,myvar,level)
        local ret = ""
@@ -355,6 +381,8 @@ local function chop(amystring,pure,atrack)
   return ret
 end
 
+mNIL.LuaLoadString = loadstring or load
+
 -- Simple serializer routine
 function mNIL.LuaSerialize(name,variable,level)
     local LS=mNIL.LuaSerialize
@@ -450,9 +478,10 @@ local function NewFromClass(classname,class, callconstructor, ...)
     
     local function getmethod(func,...)
        return function(...)
+	       local oldprivate=allowprivate
            allowprivate=true
            local ret = func(faketable,...)
-           allowprivate=false
+           allowprivate=oldprivate
            return ret
        end
     end
@@ -492,13 +521,15 @@ local function NewFromClass(classname,class, callconstructor, ...)
        end
        local where = trueclass.where[key] or trueclass.where["$get."..key]
        --print(dbg("class",trueclass))
-       assert(where,"NR: Class has neither field nor method called "..key)
+       --assert(where,"NR: Class has neither field nor method called "..key)
+	   assert(where,"NR: (IDX) Class \""..class.classname.."\" has neither field nor method called "..key)
        if (trueclass.where["$get."..key]) then
           local dd = trueclass[where]["$get."..key].declaredata
           if dd.static then 
+			 local oldprivate = allowprivate
              allowprivate=true
              local ret= dd.func()
-             allowprivate=false
+             allowprivate=oldprivate
              return ret
           else
              return getmethod(dd.func)()
@@ -506,7 +537,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
        end
        local ret = trueclass[where][key]
        assert(ret,"NR,NI/NH: Field or method could not be properly retrieved: "..class.classname.."."..key)
-       assert(allowprivate or (not ret.declaredata.private),"NR: Access to private element ("..key..") denied")
+       assert(allowprivate or (not ret.declaredata.private),"NR: Access to private element ("..class.classname.."."..key..") denied")
        if (ret.declaredata.ikben=="method") then
           if (where=='fields') then
              return getmethod(ret.declaredata.func)
@@ -531,7 +562,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
        end
        local where = trueclass.where[key] or trueclass.where["$set."..key]
        --print(dbg("trueclass",trueclass))
-       assert(where,"NR: Class has neither field nor method called "..key)
+       assert(where,"NR: (NewIDX) Class \""..classname.."\" has neither field nor method called "..key)
        assert(where=="fields" or where=="statics","NR: You can only redefine field variables, and "..key.." belongs to the "..where)
        --print("\027[36m\027[40m"..dbg('trueclass',trueclass).."\027[0m")
        if (trueclass.where["$set."..key]) then
@@ -792,7 +823,7 @@ function mNIL.Translate(script,chunk)
     end
     local function StartFunctionScope(line,func,id)
           ret = ret .. "function "..(id or "")..func.head
-          if func.assertion then ret = ret .." assert("..func.assertion..",'NR: Function did not receive the parameters the way it wanted!\\n\\tWant:"..(func.wantass or "?") .."\\n\\tGot: \\t'.."..(func.gotass or "'?'")..")" end
+          if func.assertion then ret = ret .." assert("..func.assertion..",'NR: Function `"..(func.idtype or 'var').." "..(id or '<delegate>').."("..func.head..")` did not receive the parameters the way it wanted!\\n\\tWant:"..(func.wantass or "?") .."\\n\\tGot: \\t'.."..(func.gotass or "'?'")..")" end
           newscope("function",line)
           local scope = scopes[#scopes]
           scope.func = func
@@ -839,7 +870,7 @@ function mNIL.Translate(script,chunk)
                end
             until getout end
 			assert(not (islink and (doget or doset or doreadonly or doabstract or dostatic)),"Invalid link definition!")
-            assert( chopped[tpestart].type=="NILKeyword" or islink, "NT: declaration syntax error (Unexpected "..chopped[tpestart].type..">"..chopped[tpestart].word.." in "..track )
+            assert( chopped[tpestart].type=="NILKeyword" or islink, "NT: declaration syntax error >> Unexpected "..chopped[tpestart].type..">"..chopped[tpestart].word.." in "..track )
             idtype=chopped[tpestart].word
             --assert(idtype~="class","NT: Classes have not yet been supported! "..track)
             if idtypes[idtype] then idtype=idtypes[idtype] end
@@ -1103,7 +1134,7 @@ function mNIL.Translate(script,chunk)
                ret = ret .. ")"
                if scope.kind=="group" then
 					if not scope.group_global then ret = ret .. " local " end
-					ret = ret .. scope.group_name .. " = NIL__GROUP__"..scope.group_name.."() "
+					ret = ret .. scope.group_name .. " = NIL__GROUP__"..scope.group_name.."() "					
                end
                vars[#scopes]=nil
                functions[#scopes]=nil
@@ -1111,7 +1142,7 @@ function mNIL.Translate(script,chunk)
             else
                ClassScope(chopped,track)
             end   
-         elseif chopped[1].type=="NILKeyword" or classes[chopped[1].word] then -- only for declarations!
+         elseif chopped[1].type=="NILKeyword" or (classes[chopped[1].word] and (not classes[chopped[1].word].group)) then -- only for declarations!
             local tpestart=1
             local doglobal=false
             local doforward=false
@@ -1272,7 +1303,7 @@ function mNIL.Translate(script,chunk)
                    print(dbg("vars",vars,0),IsVar~=nil,v.type,v.word)
                 end
                 --]]
-                assert(IsVar or accepted[vword] or v.type~="Unknown","NT: Unknown term \""..v.word.."\" in "..track)
+                assert(IsVar or accepted[vword] or v.type~="Unknown" or v.word:sub(1,1)==":" or v.word:sub(1,1)==".","NT: Unknown term \""..v.word.."\" in "..track)
                 -- if (v.type=="Operator") then print(v.word.." > "..dbg("chopped",chopped)) end
                 -- print(dbg('v',v),"\n"..dbg('scopes',scopes))
                 if i~=1 then ret = ret .. " " end
@@ -1281,7 +1312,8 @@ function mNIL.Translate(script,chunk)
 				elseif i~=1 and classes[v.word] and chopped[i-1].word=="new" then
 				    ret = ret .. v.word;
 					if i>=#chopped or chopped[i+1].word~="(" then ret = ret .. "()" end
-                elseif i~=1 and (v.word=='void' or v.word=='int' or v.word=='number' or v.word=='string' or v.word=='boolean' or v.word=='table' or v.word=='function' or v.word=='delegate' or v.word=="var" or classes[v.word]) then
+                elseif i~=1 and (v.word=='void' or v.word=='int' or v.word=='number' or v.word=='string' or v.word=='boolean' or v.word=='table' or v.word=='function' or v.word=='delegate' or v.word=="var" or (classes[v.word] and (not classes[v.word].group))) then
+				       -- for k,vl in pairs(classes[v.word] or {[v.word]="Nothing here"}) do CSay((v.word or '?nil?')..":: "..k.." => "..vl) end -- debug
                        assert(chopped[i+1] and chopped[i+1].word=="(","NT: Invalid delegate definition in "..track.."\nWord"..i.."\t"..v.word.."\n"..getrawline)
                        local fd,fp,fa,wa,ga = buildfunction("",chopped,i+1,track)
                        local f = { idtype=v.word, head=fd, params=fp, assertion=fa, wantass=wa, gotass=ga }
@@ -1383,6 +1415,7 @@ function mNIL.Translate(script,chunk)
                       end
                       if scopes[scopelevel()].kind=="class" or scopes[#scopes].kind=="module" or scopes[#scopes].kind=="group" then ret = ret .. "}," end
                    elseif (((v.word=="class" or v.word=="module" or v.word=="group") and i==1) or (v.word=="class" and i==2 and chopped[1].word=="private") or (v.word=="private" and i==1 and chopped[2] and (chopped[2].word=="class" or chopped[2].word=="group"))) and #scopes==0 then
+                   -- --[[ no private]] elseif #scopes==0 and ((v.word=="class" or v.word=="module" or v.word=="group") and i==1) then -- or (v.word=="class" and i==2 and chopped[1].word=="private") or (v.word=="private" and i==1 and chopped[2] and (chopped[2].word=="class" or chopped[2].word=="group"))) and #scopes==0 then
                        assert(#chopped>=2,"NT: Class, group or module requires definition!")
                        --newscope("class",linenumber)
                        newscope(v.word,linenumber)
@@ -1400,7 +1433,7 @@ function mNIL.Translate(script,chunk)
                        assert(not luakeywords[cscope.classname],"NT: Keyword as classname")
                        assert(not nilkeywords[cscope.classname],"NT: Classname is keyword")
                        assert(not _G[cscope.classname],"NT: Cannot use globals defined in 'pure lua' as classname")
-                       classes[cscope.classname]={ name = cscope.classname }
+                       classes[cscope.classname]={ name = cscope.classname,group=(v.word=="group") }
                        if v.word=="module" or v.word=="group" or chopped[1].word=="private" then ret = ret .. "local " end -- Please note that groups have a 'fake class' only used to define it, but that fake class may not mix in the 'real code'                      
                        if (v.word=="group") then
                            cscope.group_name=cscope.classname
