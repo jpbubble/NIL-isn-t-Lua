@@ -15,8 +15,9 @@ not longer than 70 years ago, you can deem this file
 with basically comes down to the same lack of
 restriction the public domain offers. (YAY!)
 ***********************************************************
-Version 19.08.02
+Version 19.08.05
 ]]
+
 
 script = [[var hoi
 
@@ -46,4 +47,5 @@ exe = assert(ls(hahaha))
 print(exe)
 exe("huh?")
 hallo.p("Hello World")
+
 
