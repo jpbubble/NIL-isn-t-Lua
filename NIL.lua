@@ -1052,12 +1052,12 @@ function mNIL.Translate(script,chunk)
          elseif #chopped>=3 and chopped[1].word=="-" and chopped[2].word=="-" and (not purelua) then
 			local chmod = "";
 			for i=3,#chopped do chmod = chmod .. chopped[i].word end
-			line = chmod .. " = "..chmod.." + 1"
+			line = chmod .. " = "..chmod.." - 1"
 			chopped = chop(line,false,track)
          elseif #chopped>=3 and chopped[#chopped-1].word=="-" and chopped[#chopped-2].word=="-" and (not purelua) then
 			local chmod = "";
 			for i=1,#chopped-3 do chmod = chmod .. chopped[i].word end
-			line = chmod .. " = "..chmod.." + 1"
+			line = chmod .. " = "..chmod.." - 1"
 			chopped = chop(line,false,track)
 		end
 
