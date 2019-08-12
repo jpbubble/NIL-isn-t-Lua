@@ -27,7 +27,7 @@ local macros = {["!="]="~="}
 local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
-local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto","group","infinity",
+local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto","group","infinity", "with",
                      "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set","module","new"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"delegate","number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean","link"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">","..",";","^"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
@@ -329,6 +329,10 @@ local function chop(amystring,pure,atrack)
             gword=""
          end
          wt=""
+	  elseif c=="$" then
+		  wt = "$"
+		  chopped[#chopped+1]="$"
+		  gword=""
       elseif c=="#" then
          assert(gword=="","Unexpected # in "..track)
          gword="#"
@@ -738,7 +742,10 @@ function mNIL.Translate(script,chunk)
     local modules = {} -- Just an array in order to return stuff properly.
     local forwards = {}
     local accepted = {}
-    local function newscope(kind,ln) scopes[#scopes+1] = { kind=kind, line=ln } end
+    local function newscope(kind,ln) 
+	   local lwith=scopes[#scopes].with or "_G"  
+	   scopes[#scopes+1] = { kind=kind, line=ln, with=lwith } 
+	end
     local function buildfunction(id,chopped,tpestart,track,needself)        
           -- error(chopped[tpestart].word) --check
           assert(chopped[tpestart].word=="(","NI: Function builder has been pointed wrong! "..track)
@@ -757,7 +764,7 @@ function mNIL.Translate(script,chunk)
                 assertion = a
              end
           end
-          if needself then params[1]="self" end -- for non-static methods.
+          if needself==true then params[1]="self" end -- for non-static methods.
           assert(chopped[i],"NT: Unfinished function definition in "..track)
           while (chopped[i].word~=")") do
              while (chopped[i] and chopped[i].word=="") do i=i+1 end
@@ -826,9 +833,10 @@ function mNIL.Translate(script,chunk)
               ret = ret .. p
           end
           ret = ret ..")"
+		  if type(needself)=="string" then ret = ret .."local self = "..needself end
           return ret,params,assertion,wantass,gotass
     end
-    local function StartFunctionScope(line,func,id)
+    local function StartFunctionScope(line,func,id,needself)
           ret = ret .. "function "..(id or "")..func.head
           if func.assertion then ret = ret .." assert("..func.assertion..",'NR: Function `"..(func.idtype or 'var').." "..(id or '<delegate>').."("..func.head..")` did not receive the parameters the way it wanted!\\n\\tWant:"..(func.wantass or "?") .."\\n\\tGot: \\t'.."..(func.gotass or "'?'")..")" end
           newscope("function",line)
@@ -843,7 +851,7 @@ function mNIL.Translate(script,chunk)
           end
     end
     
-    local function ClassScope(chopped,track,linenumber)
+    local function ClassScope(chopped,track,linenumber,staticwith)
             local tpestart=1
             local dostatic=false
             local doabstract=false
@@ -916,8 +924,10 @@ function mNIL.Translate(script,chunk)
                     idtype=idtype,
                     func = { params = {}, idtype=idtype },
                     head = "("..this..")",
-                    linenumber=linenumber
+                    linenumber=linenumber,
+					with="self"
                 }
+				if dostatic then scopes[#scopes].with="self" end
                 if not dostatic then
                    scopes[#scopes].func.params = {"self"}
                    vars[#scopes] = { self= {idtype='var', ikben='variable', name='value'}}
@@ -963,7 +973,8 @@ function mNIL.Translate(script,chunk)
                        chopped[#chopped-1].word==")"
                ),"NT: Incomplete function declaration")
                -- print(dbg('chopped',chopped))
-               local fd,fp,fa,wa,ga = buildfunction(id,chopped,tpestart+2,track,not dostatic)
+			   local needself =(not dostatic) or scopes[wscope].classname or "_G"
+               local fd,fp,fa,wa,ga = buildfunction(id,chopped,tpestart+2,track,needself)
                functions[wscope][id] = { idtype=idtype, head=fd, params=fp, assertion=fa, wantass=wa, gotass=ga }
                -- print(dbg('functions',functions))
                assert(not doreadonly,"The keyword 'readonly' is not valid for methods")
@@ -972,7 +983,8 @@ function mNIL.Translate(script,chunk)
                   ret = ret .. "abstract = true, "
                else
                   ret = ret .. "func = "
-                  StartFunctionScope(linenumber,functions[wscope][id])
+                  StartFunctionScope(linenumber,functions[wscope][id])			
+				  vars[#scopes].self = vars[#scopes].self or {idtype='var', ikben='variable', name='value'} -- enforce self to statics
                end
                --]]
             else
@@ -1147,7 +1159,7 @@ function mNIL.Translate(script,chunk)
                functions[#scopes]=nil
                scopes[#scopes]=nil
             else
-               ClassScope(chopped,track)
+               ClassScope(chopped,track,nil,scope.with)
             end   
          elseif chopped[1].type=="NILKeyword" or (classes[chopped[1].word] and (not classes[chopped[1].word].group)) then -- only for declarations!
             local tpestart=1
@@ -1295,6 +1307,14 @@ function mNIL.Translate(script,chunk)
                 end
                 vars[#scopes] = vars[#scopes] or {}
                 functions[#scopes] = functions[#scopes] or {}
+				if vword=="$" then
+					assert(i<#chopped)
+					v.word = scopes[#scopes].with
+					vword = scopes[#scopes].with
+					if i<#chopped and mid(chopped[i+1].word,1,1)~=":" then
+					  chopped[i+1].word = "."..chopped[i+1].word
+				    end
+                end
                 local IsVar = vars.globals[vword] or functions.globals[vword] or classes[vword] or _G[vword]
                 for i=0,scopelevel() do 
                     --print('scope #'..i.."/"..#scopes)
@@ -1309,7 +1329,7 @@ function mNIL.Translate(script,chunk)
                    print(dbg("chopped",chopped,0))
                    print(dbg("vars",vars,0),IsVar~=nil,v.type,v.word)
                 end
-                --]]
+                --]]				
                 assert(IsVar or accepted[vword] or v.type~="Unknown" or v.word:sub(1,1)==":" or v.word:sub(1,1)==".","NT: Unknown term \""..v.word.."\" in "..track)
                 -- if (v.type=="Operator") then print(v.word.." > "..dbg("chopped",chopped)) end
                 -- print(dbg('v',v),"\n"..dbg('scopes',scopes))
@@ -1337,6 +1357,11 @@ function mNIL.Translate(script,chunk)
                    elseif v.word=="do" then
                       ret = ret .. " do "
                       newscope("do",linenumber)
+				   elseif v.word=="with" then
+				      ret = ret .. " do -- "
+					  newscope("with",linenumber)
+					  assert(chopped[i+1],"with expects parameter")
+					  scopes[#scopes].with = chopped[i+1].word
                    elseif v.word=="if" then
                       ret = ret .. " if "
                       newscope("if",linenumber)
@@ -1428,6 +1453,7 @@ function mNIL.Translate(script,chunk)
                        newscope(v.word,linenumber)
                        local cscope = scopes[#scopes]
                        cscope.classname = chopped[2].word
+					   cscope.with = cscope.classname
                        if (#chopped>=3) then
                           assert(chopped[3].word=="extends","NT: Extends expected in "..track)
                           assert(#chopped==4,"NT: class to extend from expected in "..track)
@@ -1443,10 +1469,13 @@ function mNIL.Translate(script,chunk)
                        classes[cscope.classname]={ name = cscope.classname,group=(v.word=="group") }
                        if v.word=="module" or v.word=="group" or chopped[1].word=="private" then ret = ret .. "local " end -- Please note that groups have a 'fake class' only used to define it, but that fake class may not mix in the 'real code'                      
                        if (v.word=="group") then
+						   cscope.with = cscope.classname
                            cscope.group_name=cscope.classname
                            cscope.group_global=chopped[1].word~="private"
                            ret = ret .. "NIL__GROUP__"..cscope.group_name.." = NILClass.DeclareClass('"..cscope.classname.."',{\n"
                        else
+					       cscope.with = "self"
+						   --cscope.with = cscope.classname
                            ret = ret .. cscope.classname .. " = NILClass.DeclareClass('"..cscope.classname.."',{\n"
                        end
                        
@@ -1458,7 +1487,7 @@ function mNIL.Translate(script,chunk)
                        vars[#scopes] = {}
                        scopestart=")"
                    elseif i==1 and v.word=="case" then
-                       assert(scopes[#scopes].kind=="switch" or scopes[#scopes].kind=="case","NT: Case scopes expected in "..track)
+                       assert(scopes[#scopes].kind=="switch" or scopes[#scopes].kind=="case","NT: \"case\" used outside a switch scope expected in "..track)
                        if scopes[#scopes].kind=="switch" then ret = ret .. " if " else ret = ret .." elseif " vars[#scopes]=nil functions[#scopes]=nil scopes[#scopes]=nil end
                        local ex 
                        for i=2,#chopped do 
@@ -1469,9 +1498,9 @@ function mNIL.Translate(script,chunk)
                            end
                        end
                        ret = ret .. ex .. " then --"
-                       newscope("case",linenumber)
+                       newscope("case",linenumber) 
                    elseif i==1 and v.word=="default" then
-                       assert(scopes[#scopes].kind=="switch" or scopes[#scopes].kind=="case","NT: Case scopes expected in "..track)
+                       assert(scopes[#scopes].kind=="switch" or scopes[#scopes].kind=="case","NT: \"default\" used outside a switch scope expected in "..track)
                        if scopes[#scopes].kind=="switch" then ret = ret .. " do -- " else vars[#scopes]=nil functions[#scopes]=nil scopes[#scopes]=nil  ret = ret .." else -- " end                   
                        newscope("default",linenumber)
                    elseif v.word=="return" then

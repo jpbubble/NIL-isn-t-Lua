@@ -1,0 +1,56 @@
+
+
+class test
+
+	int i=1
+	int j=2
+	int k=3
+
+	static int l = 4
+	static void statictest()
+		print($l)
+	end
+	
+	void test()
+		print($i,$j,$k,$l)
+	end
+	
+	
+end
+
+group test2
+	string h = "Hello World"
+	
+	void test2()
+		print("Test 2",self.h)
+		print($h)
+	end
+	
+end
+
+var pok
+pok = new test
+pok.test()
+
+with pok
+	$test()
+	do
+	   $test()
+	end
+end
+
+test2.test2()
+
+
+group test3
+	int i=100
+end
+
+with test3
+	print("test #3")
+	print($i)
+end
+
+
+print("Static test")
+test.statictest()
