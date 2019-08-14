@@ -34,10 +34,23 @@ local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
 local globusedforuse = {}
 
+NIL__globalstrictness = {
+	nochange = {NIL__globalstrictness=true},
+	types = {},
+	globals = _G,
+	onoff=false,
+	setbefore=false,
+}
+
+
+
+
 
 local used = {}
 
 local mNIL = {}
+
+mNIL.globalstrictness = NIL__globalstrictness
 
 -- locals are faster than gloabls
 local loadstring = loadstring or load
@@ -90,6 +103,38 @@ end
 assert = function(condition,merror)
 	if not condition then error(merror) end
 	return condition
+end
+
+
+local globalstrictmeta = {
+	__index = function(t,k) return NIL__globalstrictness.globals[k] end,
+	__newindex = function(t,k,v)
+		--print("Defining!")
+		if NIL__globalstrictness.onoff then
+			if NIL__globalstrictness.nochange[k] then error("NR: Trying to assign a value to a read-only global ("..k..")") return end
+			if NIL__globalstrictness.types[k] and NIL__globalstrictness.types[k]~="var" and NIL__globalstrictness.types[k]~=type(v) then
+				if not(type(v)=="table" and v[".classname"] == NIL__globalstrictness.types[k]) then
+					error("NR: Global variable ("..k..") definition did not get the type expected. Wanted "..NIL__globalstrictness.types[k].."; got "..type(v))
+					return
+				end
+			end
+		end
+		NIL__globalstrictness.globals[k] = v
+	end
+}
+
+function mNIL.StrictGlobal(onoff)
+	--print("Script Global "..tostring(NIL__globalstrictness.onoff).." => "..tostring(onoff)) print("Set before = "..tostring(NIL__globalstrictness.setbefore))
+	if type(onoff)~="boolean" then error("StrictGlobal only wants a boolean value") end
+	if onoff==NIL__globalstrictness.onoff then return end -- if nothing changes, let's not spook things up.
+	if not NIL__globalstrictness.setbefore then		
+		NIL__globalstrictness.globals = {}
+		for k,v in pairs(_G) do NIL__globalstrictness.globals[k]=v end
+		print(tostring(globalstrictmeta))
+		setmetatable(_G,globalstrictmeta)
+		NIL__globalstrictness.setbefore=true
+	end
+	NIL__globalstrictness.onoff=onoff
 end
 
 local function dbg(myvarname,myvar,level)
@@ -1152,8 +1197,11 @@ function mNIL.Translate(script,chunk)
                if scope.extends then ret = ret .. ","..scope.extends end
                ret = ret .. ")"
                if scope.kind=="group" then
-					if not scope.group_global then ret = ret .. " local " end
-					ret = ret .. scope.group_name .. " = NIL__GROUP__"..scope.group_name.."() "					
+                  if not scope.group_global then ret = ret .. " local " end
+                  ret = ret .. scope.group_name .. " = NIL__GROUP__"..scope.group_name.."() "
+                  if scope.group_global then ret = ret .. string.format("\tNIL__globalstrictness.nochange['%s']=true",scope.group_name) end
+                else
+                  ret = ret .. string.format("\tNIL__globalstrictness.nochange['%s']=true",scope.classname) 
                end
                vars[#scopes]=nil
                functions[#scopes]=nil
@@ -1216,6 +1264,7 @@ function mNIL.Translate(script,chunk)
                   StartFunctionScope(linenumber,functions[wscope][id],id)
                end
             else
+			   -- variable declarations
                --print(idtype)
                assert(idtype~="void","NT: Type 'void' has been reserved for functions only! "..track)
                assert(not doforward,"NT: Keyword 'forward' is only valid for functions; "..track)
@@ -1262,10 +1311,12 @@ function mNIL.Translate(script,chunk)
                 vars[scopelevel()][id] = {idtype=idtype}
                 ret = ret .. "local " 
                else
-                vars.globals[id] = {idtype=idtype}
+                vars.globals[id] = {idtype=idtype}                
                end
                ret = ret .. sprintf("%s = %s",id,psdefault or default)
-               
+               if doglobal then
+                  ret = ret .. sprintf("; NIL__globalstrictness.types['%s'] = '%s'",id,idtype)
+               end               
             end               
          else
             local IgnoreUntil
@@ -1601,6 +1652,11 @@ function mNIL.LoadFile(file,chunk)
 end
 
 local UseStuffScript = mNIL.Translate([[
+
+// No value here, but it must exist, you know
+//table NIL__globalstrictness
+//NIL__globalstrictness.nochange={}
+
 class NIL_BASIC_USE
     
 	get string NAME
