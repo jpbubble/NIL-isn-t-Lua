@@ -1,0 +1,49 @@
+quickmeta class test1
+	index
+		return "Index test okay! (I got key "..key..")"
+	end
+	
+	newindex
+		print("You wanted to assign "..value.." to key?")
+	end
+	
+	call
+		print("You called?")
+	end
+	
+end
+
+var test
+test = new test1
+test.hello = "Hello world!"
+print(test.yo)
+test()
+
+
+quickmeta group testgroup
+	index
+		return "The key was "..key
+	end
+	
+	newindex
+		print("The key was "..key.." and the value was a "..type(value).." containing "..tostring(value) )
+	end
+	
+	tostring
+		return "This group metatable"
+	end
+	
+	call
+		print("YOU RANG?")
+	end
+	
+	gc
+		print("Are you really destroying me?")
+	end
+end
+
+testgroup.anumber = 10
+testgroup.astring = "Hello World"
+testgroup.memyselfandi = testgroup
+testgroup()
+print(testgroup.sleutel)

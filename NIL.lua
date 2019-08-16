@@ -28,7 +28,7 @@ local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto","group","infinity", "with",
-                     "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set","module","new"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
+                     "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set","module","new","quickmeta"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"delegate","number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean","link"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">","..",";","^"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
@@ -896,6 +896,31 @@ function mNIL.Translate(script,chunk)
           end
     end
     
+    local function QuickMetaScope(chopped,track,linenumber)
+        local event = chopped[1].word:lower()
+        local QMScope = scopes[#scopes]        
+        local qm = "NIL_QUICKMETA_"..QMScope.QMType:upper().."_"..QMScope.QMName
+        if event=="newindex" then
+			StartFunctionScope(linenumber,{ idtype="void", params={ "self","key","value" }, head="(self,key,value)"},qm..".__newindex")
+		elseif event=="index" then
+			StartFunctionScope(linenumber,{ idtype="var", params={ "self","key" },head="(self,key)"},qm..".__index")
+		elseif event=="call" then
+			StartFunctionScope(linenumber,{ idtype="var", params={ "self","..." },head="(self,...)"},qm..".__call")
+		elseif event=="tostring" then
+			StartFunctionScope(linenumber,{ idtype="string", params={ "self" },head="(self)"},qm..".__tostring")
+		elseif event=="len" then
+			StartFunctionScope(linenumber,{ idtype="number", params={ "self" },head="(self)"},qm..".__len")
+		elseif event=="gc" or event=="garbagecollector" or event=="destructor" then
+			StartFunctionScope(linenumber,{ idtype="number", params={ "self" },head="(self)"},qm..".__gc")
+		elseif event=="pairs" then
+			StartFunctionScope(linenumber,{ idtype="number", params={ "self" },head="(self)"},qm..".__pairs")
+		elseif event=="ipairs" then
+			StartFunctionScope(linenumber,{ idtype="number", params={ "self" },head="(self)"},qm..".__ipairs")
+		else
+			error("NT: Unknown event: "..event)
+        end
+    end
+    
     local function ClassScope(chopped,track,linenumber,staticwith)
             local tpestart=1
             local dostatic=false
@@ -1209,6 +1234,8 @@ function mNIL.Translate(script,chunk)
             else
                ClassScope(chopped,track,nil,scope.with)
             end   
+         elseif scopes[#scopes].kind=="quickmeta" and chopped[1].word~="end" then
+			QuickMetaScope(chopped,track,linenumber)
          elseif chopped[1].type=="NILKeyword" or (classes[chopped[1].word] and (not classes[chopped[1].word].group)) then -- only for declarations!
             local tpestart=1
             local doglobal=false
@@ -1473,6 +1500,27 @@ function mNIL.Translate(script,chunk)
                       ret = ret .. " break "
                    elseif v.word=="or" or v.word=="and" or v.word=="not" or v.word=="true" or v.word=="false" or v.word=="self" or v.word=="nil" then
                       ret = ret .. " "..v.word.." "
+                   elseif v.word=="quickmeta" then
+					  assert(#chopped>=i+2,"NT: non-complete quickmeta definition in "..track)
+					  scopes[#scopes+1]={}
+					  vars[#scopes]={} -- crash prevention
+					  functions[#scopes]={}
+					  local scope = scopes[#scopes]
+					  scope.kind="quickmeta"
+					  scope.line=linenumber
+					  scope.width="self"
+					  scope.QMName=chopped[i+2].word
+					  scope.QMType=chopped[i+1].word
+					  chopped[i+1].word = "// quickmeta "..chopped[i+1].word -- Dirty code, but it prevents further conflicts and this word is no longer needed anyway!
+					  assert(scope.QMType=="class" or scope.QMType=="group","NT: Invalid quickmeta type in "..track)
+					  IgnoreUntil="//"
+					  if scope.QMType=="class" then
+					     classes[scope.QMName]={ quickmeta=true }
+					     ret = ret .." local NIL_QUICKMETA_CLASS_".. scope.QMName .. " = {}"
+					   elseif scope.QMType=="group" then
+					     vars.globals[scope.QMName] = {idtype="var"}
+					     ret = ret .. " local NIL_QUICKMETA_GROUP_"..scope.QMName .. " = {}"
+					  end
                    elseif v.word=="end" then
                       assert(scopelevel()>0,"NT: Key word 'end' encountered, without any open scope!  "..track)
                       vars[#scopes] = nil
@@ -1481,6 +1529,16 @@ function mNIL.Translate(script,chunk)
                          assert(allowrepeatend,"Keyword 'end' may in this setting not be used to end a repeat. You can change that with the '#repeatmayend' directive.")
                          ret = ret .. " until false "
                          scopes[#scopes] = nil
+                      elseif scopetype()=="quickmeta" then
+                         local qmscope = scopes[scopelevel()]
+                         if qmscope.QMType=="class" then
+                            ret = ret .. " function "..qmscope.QMName.."() local ret = {} setmetatable(ret,NIL_QUICKMETA_CLASS_".. qmscope.QMName..") return ret end "
+                         elseif qmscope.QMType=="group" then
+                            ret = ret .. " "..qmscope.QMName.." = {} setmetatable("..qmscope.QMName..",NIL_QUICKMETA_GROUP_"..qmscope.QMName..")"
+                         end
+                         vars[scopelevel()]   = nil
+                         functions[#scopes]   = nil
+                         scopes[scopelevel()] = nil
                       elseif scopetype()=="function" then
                          scopes[scopelevel()] = nil
                          ret = ret .. "end"
