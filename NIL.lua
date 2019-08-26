@@ -16,8 +16,9 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-Version 19.08.05
+Version 19.08.26
 ]]
+
 
 
 
@@ -900,7 +901,9 @@ function mNIL.Translate(script,chunk)
         local event = chopped[1].word:lower()
         local QMScope = scopes[#scopes]        
         local qm = "NIL_QUICKMETA_"..QMScope.QMType:upper().."_"..QMScope.QMName
-        if event=="newindex" then
+        if left(event,2)=="//" then
+			ret = ret .. "-- whiteline!"
+        elseif event=="newindex" then
 			StartFunctionScope(linenumber,{ idtype="void", params={ "self","key","value" }, head="(self,key,value)"},qm..".__newindex")
 		elseif event=="index" then
 			StartFunctionScope(linenumber,{ idtype="var", params={ "self","key" },head="(self,key)"},qm..".__index")
@@ -1203,6 +1206,36 @@ function mNIL.Translate(script,chunk)
                   globusedforuse[idname]=true
                   vars.globals[idname]=id_dat
                   ret = ret .. idname.." = UseNIL(\""..libname.."\")"
+               end
+            elseif chopped[1].word=="#require" or chopped[1].word=="#globalrequire" or chopped[1].word=="#localrequire" then
+               assert(chopped[2],"NT: #require/#localrequire/#globalrequire expects a library/module in "..track)
+               local libname = ch2string(chopped[2])
+               local idname  = usef2id(libname)
+               local id_dat = {kind='var'}
+               if chopped[3] and chopped[3].word~="" then 
+                  assert(chopped[3].word:upper()=="AS","NT: 'as' expected no "..chopped[3].word.." in "..track)
+                  assert(chopped[4],"NT: identifer expected after 'as'")
+                  idname=chopped[4].word
+               end
+               require(libname) -- Make sure _G and NIL's global settings are updated
+               assert(ValidForIdentifier(idname),"NT: Invalid identifier name ("..idname..") in "..track)
+               if chopped[1].word=="#require" then
+                  assert(globusedforuse[idname] or (not vars.globals[idname]),"NT: #require request leads to duping identifier in "..track)
+                  globusedforuse[idname]=true
+                  vars.globals[idname]=id_dat
+                  vars[#scopes]=vars[#scopes] or {}
+                  vars[#scopes][idname]=id_dat
+                  assert(vars[#scopes][idname],"NT: #require dupes a local identifier in "..track)
+                  ret = ret .. idname.." = require \""..libname.."\" local "..idname.." = "..idname --.."\n"                  
+               elseif chopped[1].word=="#localrequire" then
+                  vars[#scopes]=vars[#scopes] or {}
+                  assert(vars[#scopes][idname],"NT: #require dupes a local identifier in "..track)
+                  ret = ret .. "local "..idname.." = require \""..libname.."\""
+               elseif chopped[1].word=="#globalrequire" then
+                  assert(globrequiredforrequire[idname] or (not vars.globals[idname]),"NT: #require request leads to duping identifier in "..track)
+                  globrequiredforrequire[idname]=true
+                  vars.globals[idname]=id_dat
+                  ret = ret .. idname.." = require \""..libname.."\""
                end
             elseif chopped[1].word=="#accept" then
                assert(chopped[2],"NT: Accept without stuff in "..track)
@@ -1804,6 +1837,7 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 
 
