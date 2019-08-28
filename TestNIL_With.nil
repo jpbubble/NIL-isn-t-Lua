@@ -15,8 +15,9 @@
 // with basically comes down to the same lack of
 // restriction the public domain offers. (YAY!)
 // ***********************************************************
-// Version 19.08.26
+// Version 19.08.28
 // End License Information
+
 
 
 
@@ -74,4 +75,5 @@ end
 
 print("Static test")
 test.statictest()
+
 

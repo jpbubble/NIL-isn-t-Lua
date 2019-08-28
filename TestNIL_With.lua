@@ -15,8 +15,9 @@ not longer than 70 years ago, you can deem this file
 with basically comes down to the same lack of
 restriction the public domain offers. (YAY!)
 ***********************************************************
-Version 19.08.26
+Version 19.08.28
 ]]
+
 
 NIL = require "NIL"
 
@@ -36,5 +37,6 @@ print("*** ORIGINAL ***\n\n"..script_nil.."\n\n\n*** TRANSLATION ***\n\n"..scrip
 script_compiled = loadstring(script_lua)
 
 script_compiled()
+
 
 

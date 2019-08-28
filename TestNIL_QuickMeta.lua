@@ -15,8 +15,9 @@ not longer than 70 years ago, you can deem this file
 with basically comes down to the same lack of
 restriction the public domain offers. (YAY!)
 ***********************************************************
-Version 19.08.26
+Version 19.08.28
 ]]
+
 
 NIL = require "NIL"
 scriptfile = "TestNIL_QuickMeta.nil"
@@ -31,4 +32,5 @@ t = NIL.Translate(script)
 print(t)
 compiled = assert((loadstring or load)(t,"TRANSLATION"))
 compiled()
+
 
