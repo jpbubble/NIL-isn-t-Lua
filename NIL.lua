@@ -16,8 +16,9 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-Version 19.08.26
+Version 19.08.28
 ]]
+
 
 
 
@@ -560,7 +561,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
     end
     
     function metatable.__index(tab,key)
-       assert(type(key)=="string","NR: Invalid field")
+       assert(type(key)=="string","NR: Invalid field (may not be "..type(key)..":"..tostring(key)..")")
        --if key=="DUMP" then return Dump() end
        if prefixed(key,".") then
           if key==".isnilclass" then return true end
@@ -662,8 +663,29 @@ local function NewFromClass(classname,class, callconstructor, ...)
            allowprivate=false
         end
     end
-    
+
+	function metatable.__len(tab)
+		-- if trueclass.fields.LEN and trueclass.fields.DESTRUCTOR.declaredata.func then return trueclass.fields.LEN and trueclass.fields.DESTRUCTOR.declaredata.func(faketable) end
+		--print ("__len:test")
+		local ret = faketable.LEN
+		assert(type(ret)=="number","Invalid LEN return");
+		return ret
+	end
+
+	--[[
+	function metatable.__ipairs(tab)
+		return faketable.IPAIRS(),faketable,0
+	end
+	
+	function metatable.__pairs(tab)
+		return faketable.PAIRS()
+	end
+	]]
+	--if trueclass.where.IPAIRS and trueclass.fields.IPAIRS.declaredata.func then metatable.__ipairs=trueclass.fields.IPAIRS.declaredata.func end
+    --if trueclass.where.PAIRS  and trueclass.fields.PAIRS.declaredata.func then metatable.__pairs=trueclass.fields.PAIRS.declaredata.func end
+
     setmetatable(faketable,metatable)
+	 -- or trueclass.where["$get.]
     if (callconstructor and trueclass.fields.CONSTRUCTOR) then
        assert(trueclass.fields.CONSTRUCTOR.declaredata.func and trueclass.fields.CONSTRUCTOR.declaredata.idtype=="void" and (not trueclass.statics.CONSTRUCTOR),"NR: Constructors may only exist as non-static 'void' functions!")
        allowprivate=true
@@ -1837,6 +1859,7 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 
 
