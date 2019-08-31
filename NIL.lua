@@ -16,8 +16,9 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-Version 19.08.28
+Version 19.08.31
 ]]
+
 
 
 
@@ -35,6 +36,7 @@ local nilkeywords = {"delegate","number","int","void","string","var", "function"
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">","..",";","^"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
 local globusedforuse = {}
+local scopecounter = 0
 
 NIL__globalstrictness = {
 	nochange = {NIL__globalstrictness=true},
@@ -812,7 +814,8 @@ function mNIL.Translate(script,chunk)
     local accepted = {}
     local function newscope(kind,ln) 
 	   local lwith=scopes[#scopes].with or "_G"  
-	   scopes[#scopes+1] = { kind=kind, line=ln, with=lwith } 
+	   scopes[#scopes+1] = { kind=kind, line=ln, with=lwith, id string.format("scope%x",scopecounter) } 
+	   scopecounter = scopecounter + 1
 	end
     local function buildfunction(id,chopped,tpestart,track,needself)        
           -- error(chopped[tpestart].word) --check
@@ -1859,6 +1862,7 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 
 
