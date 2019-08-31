@@ -814,7 +814,7 @@ function mNIL.Translate(script,chunk)
     local accepted = {}
     local function newscope(kind,ln) 
 	   local lwith=scopes[#scopes].with or "_G"  
-	   scopes[#scopes+1] = { kind=kind, line=ln, with=lwith, id string.format("scope%x",scopecounter) } 
+	   scopes[#scopes+1] = { kind=kind, line=ln, with=lwith, id = string.format("scope%x",scopecounter) } 
 	   scopecounter = scopecounter + 1
 	end
     local function buildfunction(id,chopped,tpestart,track,needself)        
