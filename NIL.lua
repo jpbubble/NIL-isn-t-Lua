@@ -25,18 +25,57 @@ Version 19.08.31
 
 
 
+
 -- Variables
 local macros = {["!="]="~="}
 local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto","group","infinity", "with",
-                     "self","switch","case","default","forever","module","class","static","get","set","readonly","private", "get", "set","module","new","quickmeta"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
-local nilkeywords = {"delegate","number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean","link"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
+                     "self","switch","case","default","forever","module","class","get","set","readonly","private", "get", "set","module","new","quickmeta"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
+local nilkeywords = {"static","delegate","number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean","link"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">","..",";","^"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
 local globusedforuse = {}
 local scopecounter = 0
+
+local truestatics = {}
+NIL_STATIC_VARS = {}
+function NIL_NEW_STATIC(scope,varid,vartype,vardefault)
+	  local tag = string.format("%s_%s",scope,varid)
+	  --print(scope,varid,vartype,vardefault)
+	  truestatics[tag] = truestatics[tag] or { vartype=vartype, value=vardefault }
+end
+setmetatable(NIL_STATIC_VARS,{
+		__index = function(t,k) 
+		  assert(truestatics[k],"NT: Unknown static: "..tostring(k))
+		  --print(NIL.LuaSerialize("statics",truestatics))
+		  return truestatics[k].value 
+		end,
+		__newindex = function(t,k,v)
+			assert(type(k)=='string',"Invalid static key")
+		    local vr = truestatics[k]
+			local vtpe = type(v)
+			local stpe = vr.vartype
+			local allowed
+			assert(v,"NR: Non existent static alled: "..tostring(k))
+			if stpe=="delegate" then stpe="function" end
+			if stpe=="bool" then stpe="boolean" end
+			if stpe=="var" then
+				allowed = true
+			elseif stpe=="number" or stpe=="string" or stpe=="boolean" then
+				allowed = stpe==vtpe
+			elseif stpe=="function" or stpe=="table" or stpe=="userdata" then
+				allowed = stpe==vtpe or v==nil
+			else 
+				allowed = type(v)=='table' and v[".classname"] == stpe
+			end
+			assert(allowed,"NR: Invalid value assigned to static!")
+			truestatics[k].value=v
+		end
+})
+
+
 
 NIL__globalstrictness = {
 	nochange = {NIL__globalstrictness=true},
@@ -1298,6 +1337,7 @@ function mNIL.Translate(script,chunk)
             local tpestart=1
             local doglobal=false
             local doforward=false
+			local dostatic=false
             local idtype
             local id
             local default = "nil"
@@ -1306,9 +1346,13 @@ function mNIL.Translate(script,chunk)
                getout=true
                if chopped[tpestart].word=="global" then 
                   doglobal=true getout=false tpestart = tpestart + 1 
+				  assert(not dostatic,"NT: Cannot make a global into a static! "..track)
                elseif chopped[tpestart].word=="forward" then 
                   doforward=true getout=false tpestart = tpestart + 1
                   wscope='globals'
+			   elseif chopped[tpestart].word=="static" then
+			      dostatic=true getout=false tpestart = tpestart + 1 
+				  assert(not doglobal,"NT: Cannot make a static into a global! "..track)
                end
             until getout end
             assert( chopped[tpestart].type=="NILKeyword" or classes[chopped[1].word], "NT: declaration syntax error in "..track )
@@ -1331,12 +1375,13 @@ function mNIL.Translate(script,chunk)
                   ),"NT: Duplicate identifier \""..id.."\" in "..track)
             end
             if #chopped>tpestart+2 and chopped[tpestart+2].word=="(" then   
+			   assert(not dostatic,"NT: Static not allowed for (non-class) functions in "..track)
                assert(
                     chopped[#chopped].word==")" or 
                     (
                        prefixed(chopped[#chopped].word,"") and 
                        chopped[#chopped-1].word==")"
-               ),"NT: Incomplete function declaration")
+               ),"NT: Incomplete function declaration in "..track)
                -- print(dbg('chopped',chopped))
                local fd,fp,fa,wa,ga = buildfunction(id,chopped,tpestart+2,track)
                functions[wscope][id] = { idtype=idtype, head=fd, params=fp, assertion=fa, wantass=wa, gotass=ga }
@@ -1392,15 +1437,22 @@ function mNIL.Translate(script,chunk)
                   assert(classes[idtype],"NT: No type nor class known as "..idtype.." in "..track)
                   default = "nil"
                end
-               if not doglobal then 
+			   if dostatic then
+			       local tag = string.format("%s_%s",scopes[#scopes].id,id)
+				   ret = ret .. string.format("NIL_NEW_STATIC('%s','%s','%s',%s)",scopes[#scopes].id,id,idtype,default)
+			       vars[scopelevel()][id] = {idtype=idtype, replacewith="NIL_STATIC_VARS."..tag}
+				   --error("Static var declaration not yet fully completed")
+               elseif not doglobal then 
                 vars[scopelevel()][id] = {idtype=idtype}
                 ret = ret .. "local " 
                else
                 vars.globals[id] = {idtype=idtype}                
                end
-               ret = ret .. sprintf("%s = %s",id,psdefault or default)
-               if doglobal then
-                  ret = ret .. sprintf("; NIL__globalstrictness.types['%s'] = '%s'",id,idtype)
+			   if not dostatic then
+                  ret = ret .. sprintf("%s = %s",id,psdefault or default)
+                  if doglobal then
+                      ret = ret .. sprintf("; NIL__globalstrictness.types['%s'] = '%s'",id,idtype)
+				  end
                end               
             end               
          else
@@ -1456,10 +1508,20 @@ function mNIL.Translate(script,chunk)
                     --print('scope #'..i.."/"..#scopes)
 					vars[i]=vars[i] or {}
 					functions[i]=functions[i] or {}
+					local vr = vars[i][vword]
                     IsVar = IsVar or 
                          vars[i][vword] or 
                          functions[i][vword] 
+					if vr then
+					   if vr.replacewith then
+						  local l = #v.word-(#vword)
+					      local newword = vr.replacewith
+						  if l>0 then newword = newword .. right(v.word,l) end
+						  -- print("-",v.word,#v.word,"\n=",vword,#vword,"\n=",newword,"\n=>",right(v.word,#v.word-(#vword)),l)
+						  v.word=newword
+					   end
                     end
+				end
                 --[[
                 if not(IsVar or v.type~="Unknown") then
                    print(dbg("chopped",chopped,0))
@@ -1862,6 +1924,7 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 
 
