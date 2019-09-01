@@ -48,9 +48,14 @@ local driver_source = [[
          end
      end
      
-     return NIL_Love_Driver.NEW()    
+     return new NIL_Love_Driver
 
 ]]
 
 NIL.UseStuff = NIL.Load(driver_source)
 
+-- If you 'require' this file into your mail.lua file, NIL *SHOULD* work in LOVE *AND* be able to get script files 
+-- from your .love file by means of the "#use" directive and NIL.Load
+-- Best way to go after loading this is to do the rest of your scripting in NIL only, and to call your
+-- main script main.nil or mainnil.nil or something like that and type
+-- NIL.Use("main.nil") to load and run it.
