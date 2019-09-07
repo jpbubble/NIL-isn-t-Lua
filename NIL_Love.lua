@@ -16,8 +16,9 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-Version 19.05.07
+Version 19.09.07
 ]]
+
 
 
 
@@ -59,3 +60,4 @@ NIL.UseStuff = NIL.Load(driver_source)
 -- Best way to go after loading this is to do the rest of your scripting in NIL only, and to call your
 -- main script main.nil or mainnil.nil or something like that and type
 -- NIL.Use("main.nil") to load and run it.
+

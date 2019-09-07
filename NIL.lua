@@ -16,8 +16,9 @@ THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-Version 19.08.31
+Version 19.09.07
 ]]
+
 
 
 
@@ -1062,7 +1063,7 @@ function mNIL.Translate(script,chunk)
                     func = { params = {}, idtype=idtype },
                     head = "("..this..")",
                     linenumber=linenumber,
-					with="self"
+					with="self",					
                 }
 				if dostatic then scopes[#scopes].with="self" end
                 if not dostatic then
@@ -1318,10 +1319,11 @@ function mNIL.Translate(script,chunk)
                ret = ret .. "}"
                if scope.extends then ret = ret .. ","..scope.extends end
                ret = ret .. ")"
-               if scope.kind=="group" then
-                  if not scope.group_global then ret = ret .. " local " end
+               if scope.kind=="group" or scope.kind=="module" then
+                  if (not scope.group_global) or scope.kind=="module" then ret = ret .. " local " end
                   ret = ret .. scope.group_name .. " = NIL__GROUP__"..scope.group_name.."() "
                   if scope.group_global then ret = ret .. string.format("\tNIL__globalstrictness.nochange['%s']=true",scope.group_name) end
+				  if scope.kind=="module" then ret = ret .. "\t\treturn "..scope.group_name end
                 else
                   ret = ret .. string.format("\tNIL__globalstrictness.nochange['%s']=true",scope.classname) 
                end
@@ -1527,7 +1529,8 @@ function mNIL.Translate(script,chunk)
                    print(dbg("chopped",chopped,0))
                    print(dbg("vars",vars,0),IsVar~=nil,v.type,v.word)
                 end
-                --]]				
+                --]]
+				assert(v.word,"NI: Word became nil in "..track.." ("..i..")")
                 assert(IsVar or accepted[vword] or v.type~="Unknown" or v.word:sub(1,1)==":" or v.word:sub(1,1)==".","NT: Unknown term \""..v.word.."\" in "..track)
                 -- if (v.type=="Operator") then print(v.word.." > "..dbg("chopped",chopped)) end
                 -- print(dbg('v',v),"\n"..dbg('scopes',scopes))
@@ -1701,14 +1704,19 @@ function mNIL.Translate(script,chunk)
 						   cscope.with = cscope.classname
                            cscope.group_name=cscope.classname
                            cscope.group_global=chopped[1].word~="private"
-                           ret = ret .. "NIL__GROUP__"..cscope.group_name.." = NILClass.DeclareClass('"..cscope.classname.."',{\n"
+                           ret = ret .. "NIL__GROUP__"..cscope.group_name.." = NILClass.DeclareClass('"..cscope.classname.."',{"
+                       elseif (v.word=="module") then
+						   cscope.with = cscope.classname
+                           cscope.group_name=cscope.classname
+                           --cscope.group_global=chopped[1].word~="private"
+                           ret = ret .. cscope.group_name.."; local NIL__GROUP__"..cscope.group_name.." = NILClass.DeclareClass('"..cscope.classname.."',{"
                        else
 					       cscope.with = "self"
 						   --cscope.with = cscope.classname
-                           ret = ret .. cscope.classname .. " = NILClass.DeclareClass('"..cscope.classname.."',{\n"
+                           ret = ret .. cscope.classname .. " = NILClass.DeclareClass('"..cscope.classname.."',{"
                        end
                        
-                       if v.word=="module" then modules[#modules+1] = cscope.classname end
+                       -- if v.word=="module" then modules[#modules+1] = cscope.classname end
                        break
                    elseif i==1 and v.word=="switch" then
                        ret = ret .. "do local switch=("
@@ -1924,6 +1932,7 @@ end
 UseNIL = mNIL.Use -- Make sure there's always a UseNIL. Also note! NEVER replace this with something else! NIL *will* throw an error
 
 return mNIL
+
 
 
 
