@@ -33,7 +33,7 @@ local vars = {}
 local functions = {}
 local classes = {} -- reserved for when classes are implemented!
 local luakeywords = {"if","do","for","while","then","repeat","end","until","elseif","else","return", "break", "in", "not","or","and","nil","true","false","goto","group","infinity", "with",
-                     "self","switch","case","default","forever","module","class","get","set","readonly","private", "get", "set","module","new","quickmeta"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
+                     "final","self","switch","case","default","forever","module","class","get","set","readonly","private", "get", "set","module","new","quickmeta"} -- please note that some keywords may still have some "different" behavior! Although 'switch' is not a Lua keyword it's listed here, as it will make my 'scope' translation easier...
 local nilkeywords = {"static","delegate","number","int","void","string","var", "function","global","table","implementation","impl","forward","bool","boolean","link"} -- A few words here are actually Lua keywords, BUT NIL handles them differently in a way, and that's why they are listed here!
 local operators   = {"==","~".."=",">=","<=","+","-","*","//","%","(",")","{","}","[","]",",","/","=","<",">","..",";","^"} -- Period is not included yet, as it's used for both decimal numbers, tables, and in the future (once that feature is implemented) classes.
 local idtypes     = {"var",["variant"]="var",["int"]="number","number","string","function",["delegate"]="function","void",["bool"]="boolean","boolean"}
@@ -562,7 +562,13 @@ local function NewFromClass(classname,class, callconstructor, ...)
            wh=trueclass.statics 
            trueclass.where[k]="statics" 
         end
-        assert(not v.abstract,"NR,NH: Abstract fields are not allowed at all, and especially not in a new defintion!")
+		-- print(callconstructor,classname,k,v.abstract)
+		if v.static and v.abstract then 
+			error("NR: Static members may not be abstract!")
+		end
+		if callconstructor then
+			assert(not v.abstract,"NR: Cannot create new record when there are abstracts in the class") --"NR,NH: Abstract fields are not allowed at all, and especially not in a new defintion!")
+		end
         --if (v.name~=k) then print("Mismatch >> ",v.name,k) end
         --assert(v.name==k,"NR,NH: Field naming mismatch!")
         --print("\027[32m"..dbg('trueclass',trueclass).."\027[0m")        
@@ -738,6 +744,22 @@ local function NewFromClass(classname,class, callconstructor, ...)
     return faketable
 end
 
+function tablecopy(tab)
+	local ret = {}
+	local debug = false
+	if debug then print(" Copy table",tab) end
+	for k,v in pairs(tab) do
+		if type(v)=="table" then 
+			if debug then print(">>",k) end
+			ret[k] = tablecopy(v) 
+		else 
+			if debug then print(">",k,v) end
+			ret[k]=v 
+		end
+	end
+	if debug then print("/Copy table",tab) end
+	return ret
+end
 
 function NILClass.DeclareClass(name,identifiers,extends)
     local reservednames = {"NEW"}
@@ -748,10 +770,18 @@ function NILClass.DeclareClass(name,identifiers,extends)
     class.classname = name
     if extends then
        class.parentname = extends
-       class.parent = class[extends]
-       for k,v in pairs(class.parent) do
-           fields[k] = {}
-           local cf=fields[k]
+       class.parent = classes[extends]
+	   -- [[DEBUG]] for k,v in pairs(classes) do print("Got class",k) end
+	   assert(class.parent,string.format("NT:Non-existent class %s cannot be extended!",extends))
+	   -- [[debug]] print(mNIL.LuaSerialize("parent",class.parent))
+       for k,v in pairs(class.parent.fields) do
+           --fields[k] = {}
+           local cf=tablecopy(v) --class.parent.fields[k])
+		   fields[k]=cf
+		   --for k,v in pairs(fields) do 
+		   --   -- [[debug]] print("Copying field: "..k.." from parent "..extends)
+		   --   cf[k]=v 
+		   --end
            cf.fromparent=true
            for fk,fv in pairs(class.parent.fields) do
                if (fk=="default" and class.parent.fields.idtype=="table") then cf.default = 'new table' else cf[fk]=fv end
@@ -763,6 +793,7 @@ function NILClass.DeclareClass(name,identifiers,extends)
         for _,na in ipairs(reservednames) do assert(k~=na,"NT: Cannot use '"..k.."' as element for a class, as the name has been reserved.") end
         local old = fields[k]
         if old then -- Check if overriding old stuff is allowed!
+		   -- [[debug]] print("Checking old:"..k)
            assert(old.fromparent,"NT: Duplicate field/method: "..k)
            assert(not old.final,"NT: Final elements cannot be overridden: "..k)
         end
@@ -995,6 +1026,7 @@ function mNIL.Translate(script,chunk)
             local doabstract=false
             local doreadonly=false
             local doprivate=false
+			local dofinal=false
             local doget,doset=false,false
             local idtype
             local id
@@ -1008,8 +1040,12 @@ function mNIL.Translate(script,chunk)
                getout=true
                if chopped[tpestart].word=="static" then 
                   dostatic=true getout=false tpestart = tpestart + 1 
+			   elseif chopped[tpestart].word=="final" then
+			      dofinal=true getout=false tpestart = tpestart +1
+				  assert(not doabstract,"NT: Abstract members cannot be final in "..track)
                elseif chopped[tpestart].word=="abstract" then 
                   doabstract=true getout=false tpestart = tpestart + 1
+				  assert(not dofinal,"NT: Final members cannot be abstract in "..track)
                elseif chopped[tpestart].word=="readonly" then
                   doreadonly=true getout=false tpestart = tpestart + 1
                elseif chopped[tpestart].word=="private" then
@@ -1047,7 +1083,7 @@ function mNIL.Translate(script,chunk)
             end
 			if (islink) then
 				print(tpestart,chopped[tpestart+1],chopped[tpestart+1].word) -- debug
-				assert(chopped[tpestart+1] and chopped[tpestart+1].word=="=" and chopped[tpestart+2],"Link needs link data to link to");
+				assert(chopped[tpestart+1] and chopped[tpestart+1].word=="=" and chopped[tpestart+2],"NT: Link needs link data to link to ("..track..")");
 			    ret = ret .. "\t['$get."..id.."'] = { ikben='get', idtype='var', name='"..id.."', static=true, private="..blst[doprivate or prefixed(id,"_")]..", func=function() return "..chopped[tpestart+2].word.." end },\t"
 				ret = ret .. "\t['$set."..id.."'] = { ikben='set', idtype='void', name='"..id.."', static=true, private="..blst[doprivate or prefixed(id,"_")]..", func=function(value) "..chopped[tpestart+2].word.." = value end },\t"
 				idtype="var"
@@ -1056,7 +1092,7 @@ function mNIL.Translate(script,chunk)
                 if not dostatic then
                    this='self'
                 end
-                ret = ret .. "\t['$get."..id.."'] = { ikben='get', idtype='"..idtype.."', name='"..id.."', static="..blst[dostatic]..", private="..blst[doprivate or prefixed(id,"_")]..", func=function("..this..")"
+                ret = ret .. "\t['$get."..id.."'] = { ikben='get', idtype='"..idtype.."', name='"..id.."', final="..tostring(dofinal)..", static="..blst[dostatic]..", private="..blst[doprivate or prefixed(id,"_")]..", func=function("..this..")"
                 scopes[#scopes+1] = {
                     kind='function',
                     idtype=idtype,
@@ -1077,7 +1113,7 @@ function mNIL.Translate(script,chunk)
                    this='self'
                    thiscomma="self,"
                 end
-                ret = ret .. "\t['$set."..id.."'] = { ikben='set', idtype='void', name='"..id.."', static="..blst[dostatic]..", private="..blst[doprivate or prefixed(id,"_")]..", func=function("..thiscomma.."value)"
+                ret = ret .. "\t['$set."..id.."'] = { ikben='set', idtype='void', name='"..id.."', final="..tostring(dofinal)..", static="..blst[dostatic]..", private="..blst[doprivate or prefixed(id,"_")]..", func=function("..thiscomma.."value)"
                 local assertion
                 if idtype == "var" then assertion = nil
                 elseif idtype=="number"   then assertion="type(value)=='number'"
@@ -1116,9 +1152,9 @@ function mNIL.Translate(script,chunk)
                functions[wscope][id] = { idtype=idtype, head=fd, params=fp, assertion=fa, wantass=wa, gotass=ga }
                -- print(dbg('functions',functions))
                assert(not doreadonly,"The keyword 'readonly' is not valid for methods")
-               ret = ret .. "\t['"..id.."'] = { ikben='method', idtype='"..idtype.."', name='"..id.."', static="..blst[dostatic]..", private="..blst[doprivate or prefixed(id,"_")]..", "
+               ret = ret .. "\t['"..id.."'] = { ikben='method', idtype='"..idtype.."', final="..tostring(dofinal)..", name='"..id.."', static="..blst[dostatic]..", private="..blst[doprivate or prefixed(id,"_")]..", "
                if doabstract then
-                  ret = ret .. "abstract = true, "
+                  ret = ret .. "abstract = true }, " -- removed , but is that a good thing?
                else
                   ret = ret .. "func = "
                   StartFunctionScope(linenumber,functions[wscope][id])			
@@ -1167,7 +1203,7 @@ function mNIL.Translate(script,chunk)
                else
                   error("NT: Type \""..idtype.."\" not yet supported in "..track)
                end
-               ret = ret .. "\t['"..id.."'] = { ikben='field', idtype='".. idtype.."', name='"..id.."', default= "..(psdefault or default)..", static="..blst[dostatic]..", readonly="..blst[doreadonly]..", private="..blst[doprivate or prefixed(id,"_")].."},"
+               ret = ret .. "\t['"..id.."'] = { ikben='field', idtype='".. idtype.."', name='"..id.."', final="..tostring(dofinal)..", default= "..(psdefault or default)..", static="..blst[dostatic]..", readonly="..blst[doreadonly]..", private="..blst[doprivate or prefixed(id,"_")].."},"
                fields[id]=true
                
             end
@@ -1317,7 +1353,7 @@ function mNIL.Translate(script,chunk)
             functions[scopelevel()] =  functions[scopelevel()] or {}
             if #chopped == 1 and chopped[1] and chopped[1].word=="end" then
                ret = ret .. "}"
-               if scope.extends then ret = ret .. ","..scope.extends end
+               if scope.extends then ret = ret .. ", '"..scope.extends.."'" end
                ret = ret .. ")"
                if scope.kind=="group" or scope.kind=="module" then
                   if (not scope.group_global) or scope.kind=="module" then ret = ret .. " local " end
