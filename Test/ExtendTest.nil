@@ -1,0 +1,67 @@
+class Standard
+
+	int a = 30
+	int b = 40
+	int c = 50
+	
+	void Hi()
+		print("Hello")
+	end
+	
+	abstract void Bye()
+	
+	final void NoOverwrite()
+		print("Yeah!")
+	end
+	
+	void CONSTRUCTOR()
+	    print("Base Created!")
+	end
+	
+end
+
+class Ex extends Standard
+
+	int c=60
+	int d=70
+	
+	//void CONSTRUCTOR()
+	//    print("Extension Created!")
+	//end
+	
+	
+	void Hi()
+		print("World")
+	end
+	
+	void Bye()
+		print("Auf Wiedersehen!")
+	end
+	
+	//void NoOverwrite()
+	//	print("Error?")
+	//end
+end
+
+
+table a
+print("Let's go!")
+//a[1] = new Standard
+a[2] = new Ex
+
+for i,k in pairs(a)
+	print(i,k.a,k.b,k.c)
+	k.Hi()
+end
+
+print(a[2].d)
+a[2].Bye()
+a[2].NoOverwrite()
+
+
+group AltBye extends Standard
+	void Bye()
+		print("Au Revoir!")
+	end
+end
+AltBye.Bye()
