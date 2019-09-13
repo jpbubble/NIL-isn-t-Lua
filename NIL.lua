@@ -569,6 +569,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
 		if callconstructor then
 			assert(not v.abstract,"NR: Cannot create new record when there are abstracts in the class") --"NR,NH: Abstract fields are not allowed at all, and especially not in a new defintion!")
 		end
+		
         --if (v.name~=k) then print("Mismatch >> ",v.name,k) end
         --assert(v.name==k,"NR,NH: Field naming mismatch!")
         --print("\027[32m"..dbg('trueclass',trueclass).."\027[0m")        
@@ -744,7 +745,7 @@ local function NewFromClass(classname,class, callconstructor, ...)
     return faketable
 end
 
-function tablecopy(tab)
+local function tablecopy(tab)
 	local ret = {}
 	local debug = false
 	if debug then print(" Copy table",tab) end
@@ -774,6 +775,7 @@ function NILClass.DeclareClass(name,identifiers,extends)
 	   -- [[DEBUG]] for k,v in pairs(classes) do print("Got class",k) end
 	   assert(class.parent,string.format("NT:Non-existent class %s cannot be extended!",extends))
 	   -- [[debug]] print(mNIL.LuaSerialize("parent",class.parent))
+	   assert(class.parent.fields,string.format("NI: Internal error! Fieldless parent '%s' while extending into '%s'",extends,name)) 
        for k,v in pairs(class.parent.fields) do
            --fields[k] = {}
            local cf=tablecopy(v) --class.parent.fields[k])
