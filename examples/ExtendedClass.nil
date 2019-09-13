@@ -1,0 +1,49 @@
+// This might well be one of the most complicated versions of "Hello World" you've ever seen :P
+
+
+class HiBase
+	abstract void Hello()
+end
+
+table Langs
+
+
+class classDutch extends HiBase
+	void Hello()
+		print("Hello wereld")
+	end
+	
+	final void WhiteLine()
+		print("")
+	end
+end
+
+Langs.Dutch = new classDutch
+
+
+group French extends HiBase
+	void Hello()
+		print("Salut monde")
+	end
+end
+
+Langs.French = French
+
+class classEnglish extends HiBase
+	void Hello()
+		print("Hello world")
+	end
+end
+
+Langs.English = new classEnglish
+
+// Bugged... right now... So let's skip that
+// #use ExtendedClassGerman as German
+// Langs.German = German
+Langs.German = NIL.Use("ExtendedClassGerman")
+
+
+for k,v in pairs(Langs)
+	v.Hello()
+	//v.WhiteLine()
+end

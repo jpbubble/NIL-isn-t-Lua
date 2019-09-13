@@ -1,0 +1,34 @@
+// Aside from regular metatables, NIL also features a 'quickmeta' feature.
+
+quickmeta group TestGroup
+	index
+		return "So you wanted to know what is in " .. tostring(key) .. ", eh?"
+	end
+	
+	newindex
+		print ("So you wanted to assign \"" .. tostring(value) .. "\" into "..tostring(key) .. ", eh?")
+	end
+	
+end
+
+TestGroup.Hello = "Hello World!"
+print(TestGroup.WhatsUp)
+
+
+quickmeta class TestClass
+	index
+		return key*key
+	end
+	
+	newindex
+		print("Sorry! No writing!")
+	end
+	
+end
+
+var Q
+Q = new TestClass
+for i=1,12
+	Q[i]=i
+	print(i,Q[i])
+end

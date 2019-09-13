@@ -1,0 +1,7 @@
+// To be imported by ExtendedClass.nil
+
+module modGerman extends HiBase
+	void Hello()
+		print("Hallo Welt!")
+	end
+end
