@@ -1860,8 +1860,14 @@ end
 
 function mNIL.Load(script,chunk)
 	local translation=mNIL.Translate(script,chunk)
+	local tchunk
 	-- nildump = (nildump or -1) +1 local bt = assert(io.open("E:\\temp\\bubdebug\\NILDUMP"..nildump..".LUA","wb")) bt:write(translation .. "\n\n-- "..chunk) bt:close() -- debug must be dummied when not in use!
-    local ret,error = loadstring(translation,"Trans: "..(chunk or "?"))
+	if chunk and #chunk>40 then
+		tchunk = left(chunk,17).."..."..right(chunk,17)
+	else
+		tchunk = chunk or "?"
+	end
+    local ret,error = loadstring(translation,"Trans: "..tchunk)
 	if (not ret) and CSay then CSay("Error in translation:\n"..translation) end
 	return ret,error
 end
