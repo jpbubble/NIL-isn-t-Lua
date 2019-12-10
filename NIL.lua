@@ -181,6 +181,68 @@ function mNIL.StrictGlobal(onoff)
 	NIL__globalstrictness.onoff=onoff
 end
 
+function mNIL.qMod(act,value,modifier)	
+	local tv = type(value)
+	local tm = type(modifier)
+	if tv == "number" then
+		assert(tm=="number",("Action type mismatch %s!=%s"):format(tv,tm))
+		if act=="+" then
+			return value + modifier
+		elseif act=="-" then
+			return value - modifier
+		elseif act=="/" then
+			return value / modifier
+		elseif act:upper()=="DIV" then
+			return math.floor((value/modifier)+.5)
+		elseif act=="%" or act:upper()=="MOD" then
+			return value % modifier
+		elseif act=="*" then
+			return value * modifier
+		else
+			error(("Action '%s' not possible with %s"):format(act,tm))
+		end
+	elseif tv == "boolean" then
+		if act=="=" then
+			return value~=false and value~=nil
+		elseif act=="!" then
+			return value==false or value==nil
+		end
+		error(("Action '%s' not possible with %s"):format(act,tm))
+	elseif tv == "userdata" then
+		error("Userdata not compatible with quick modifiers")
+	elseif tv == "string" then
+		if act=="+" then
+			return value .. tostring(modifier)
+		elseif act=="*" then
+			assert(tm=="number","* for strings requires a number for a moderfier and not a"..tm)
+			local ret = ""
+			for i=1,modifier do
+				ret = ret .. tostring(value)
+			end
+			return ret
+		else
+			error(("Action '%s' not possible with %s"):format(act,tm))
+		end
+	elseif tv == "table" then
+		local wantmethod				
+		if     act=="+"   then wantmethod="ADD"
+		elseif act=="-"   then wantmethod="SUBTRACT"
+		elseif act=="/"   then wantmethod="DIVIDE"
+		elseif act=="DIV" then wantmethod="INTDIVIDE"
+		elseif act=="%"   then wantmethod="MODULO"
+		elseif act=="*"   then wantmethod="MULTIPLY"
+		else   error("No reference for action "..act) end
+		if value[".classname"] then
+			return value["QUICMODIFY_"..wantmethod](modifier)
+		else
+			return value["QUICMODIFY_"..wantmethod](value,modifier)
+		end
+	else
+		error("No quickmodifier for "..tv)
+	end
+end
+
+
 local function dbg(myvarname,myvar,level)
        local ret = ""
        for i=1,level or 1 do ret = ret .."\t" end
@@ -1344,8 +1406,26 @@ function mNIL.Translate(script,chunk)
                assert(chopped[2],"NT: Accept without stuff in "..track)
                assert(chopped[2].type=="Unknown" or chopped[2].type=="Lua_identifier","NT: Invalid #accept! I cannot accept "..chopped[2].type.." in "..track)
                accepted[chopped[2].word]=true;
+			elseif chopped[1].word:upper()=="#DIV" then
+				assert(chopped[2],"NT: Modifier assignment without var in "..track)
+				assert(chopped[3],"NT: Modifier assignment without expression in "..track)
+				local w2 = "DIV"
+				ret = ret .. chopped[2].word .. " = NIL.qMod('"..w2.."', "..chopped[2].word..", "
+				for i=3,#chopped do ret = ret .. chopped[3].word end
+				ret = ret ..")"			
+			elseif chopped[1].word=="#" then
+				assert(chopped[2],"NT: Unassigned directive in "..track)
+				assert(chopped[3],"NT: Modifier assignment without var in "..track)
+				assert(chopped[4],"NT: Modifier assignment without expression in "..track)
+				local w2 = chopped[2].word
+				if w2=="+" or w2=="/" or w2=="*" or w2=="-" or w2=="=" or w2=="!" or w2=="%" then 
+					ret = ret .. chopped[3].word .. " = NIL.qMod('"..w2.."', "..chopped[3].word..", "
+					for i=4,#chopped do ret = ret .. chopped[i].word end
+					ret = ret ..")"
+					--print("\n\n[DUMP]\n"..ret.."[/DUMP]\n\n\n") -- debug only!
+				end
             else
-               error("Unexpected/unknown directive in "..track)
+               error("NT: Unexpected/unknown directive in "..track)
             end
          elseif purelua then
              ret = ret .. getrawline
